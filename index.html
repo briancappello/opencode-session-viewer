@@ -608,6 +608,75 @@
             opacity: 0.9;
         }
         
+        .load-divider {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 20px 0;
+            color: var(--text-tertiary);
+            font-size: 12px;
+        }
+        
+        .load-divider::before,
+        .load-divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--border-color);
+        }
+        
+        .url-input-wrapper {
+            display: flex;
+            gap: 8px;
+            max-width: 500px;
+            margin: 0 auto;
+        }
+        
+        .url-input {
+            flex: 1;
+            padding: 10px 14px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+        
+        .url-input:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+        }
+        
+        .url-input::placeholder {
+            color: var(--text-tertiary);
+        }
+        
+        .url-load-btn {
+            padding: 10px 20px;
+            background: var(--accent-green);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            white-space: nowrap;
+        }
+        
+        .url-load-btn:hover {
+            opacity: 0.9;
+        }
+        
+        .url-load-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .load-error {
+            color: #dc2626;
+            font-size: 12px;
+            margin-top: 12px;
+        }
+        
         ::-webkit-scrollbar {
             width: 8px;
             height: 8px;
@@ -660,7 +729,14 @@
                             <input type="file" id="fileInput" accept=".json">
                         </label>
                     </div>
-                    <p style="margin-top: 16px; font-size: 12px;">Or place session_data.json in the same folder</p>
+                    <div class="load-divider">or</div>
+                    <p style="margin-bottom: 12px;">Load from URL</p>
+                    <div class="url-input-wrapper">
+                        <input type="text" class="url-input" id="urlInput" placeholder="https://example.com/session_data.json">
+                        <button class="url-load-btn" id="urlLoadBtn" onclick="loadFromUrl()">Load URL</button>
+                    </div>
+                    <div class="load-error" id="loadError" style="display: none;"></div>
+                    <p style="margin-top: 20px; font-size: 12px; color: var(--text-tertiary);">Or place session_data.json in the same folder</p>
                 </div>
             </div>
         </div>
@@ -1065,6 +1141,54 @@
                 reader.readAsText(file);
             }
         });
+        
+        // URL input - load on Enter key
+        document.getElementById('urlInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                loadFromUrl();
+            }
+        });
+        
+        // Load from URL
+        async function loadFromUrl() {
+            const urlInput = document.getElementById('urlInput');
+            const loadBtn = document.getElementById('urlLoadBtn');
+            const errorDiv = document.getElementById('loadError');
+            const url = urlInput.value.trim();
+            
+            if (!url) {
+                errorDiv.textContent = 'Please enter a URL';
+                errorDiv.style.display = 'block';
+                return;
+            }
+            
+            // Basic URL validation
+            try {
+                new URL(url);
+            } catch {
+                errorDiv.textContent = 'Please enter a valid URL';
+                errorDiv.style.display = 'block';
+                return;
+            }
+            
+            errorDiv.style.display = 'none';
+            loadBtn.disabled = true;
+            loadBtn.textContent = 'Loading...';
+            
+            try {
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                const data = await response.json();
+                loadData(data);
+            } catch (err) {
+                errorDiv.textContent = `Failed to load: ${err.message}`;
+                errorDiv.style.display = 'block';
+                loadBtn.disabled = false;
+                loadBtn.textContent = 'Load URL';
+            }
+        }
         
         // Filter buttons
         document.querySelectorAll('.filter-btn').forEach(btn => {
