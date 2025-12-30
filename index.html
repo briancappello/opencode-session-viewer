@@ -726,9 +726,9 @@
                     
                     <div style="background: var(--bg-secondary); border-radius: 8px; padding: 20px; max-width: 600px; margin: 0 auto 24px; text-align: left; border: 1px solid var(--border-color);">
                         <div style="font-weight: 600; margin-bottom: 12px;">How to export your session data:</div>
-                        <p style="margin-bottom: 12px;">Ask OpenCode to run this command (you can <a href="https://raw.githubusercontent.com/ericmjl/opencode-session-viewer/main/export_session.py" target="_blank" style="color: var(--accent-blue);">inspect the script</a> first):</p>
-                        <div style="background: var(--code-bg); padding: 12px; border-radius: 6px; font-family: monospace; font-size: 12px; overflow-x: auto; margin-bottom: 12px;">uv run https://raw.githubusercontent.com/ericmjl/opencode-session-viewer/main/export_session.py</div>
-                        <p style="font-size: 12px; color: var(--text-secondary);">This will interactively list your sessions and export the one you choose to <code style="background: var(--code-bg); padding: 2px 5px; border-radius: 3px;">session_data.json</code>.</p>
+                        <p style="margin-bottom: 12px;">Copy and paste this prompt into OpenCode:</p>
+                        <div style="background: var(--code-bg); padding: 12px; border-radius: 6px; font-size: 12px; overflow-x: auto; margin-bottom: 12px; white-space: pre-wrap; line-height: 1.5;">Find this session's ID from OpenCode's storage, then export it by running the script at https://raw.githubusercontent.com/ericmjl/opencode-session-viewer/main/export_session.py (inspect the contents first). Export it as session_data.json in the current directory.</div>
+                        <p style="font-size: 12px; color: var(--text-secondary);">Or run manually: <code style="background: var(--code-bg); padding: 2px 5px; border-radius: 3px;">uv run https://raw.githubusercontent.com/ericmjl/opencode-session-viewer/main/export_session.py</code></p>
                     </div>
                     
                     <div class="file-input-wrapper">
@@ -743,7 +743,7 @@
                         <button class="url-load-btn" id="urlLoadBtn" onclick="loadFromUrl()">Load</button>
                     </div>
                     <div class="load-error" id="loadError" style="display: none;"></div>
-                    <p style="margin-top: 20px; font-size: 12px; color: var(--text-tertiary);">Tip: Place session_data.json in the same folder as this HTML file for auto-loading</p>
+
                 </div>
             </div>
         </div>

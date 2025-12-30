@@ -6,7 +6,11 @@ A standalone HTML viewer for browsing OpenCode session logs. View your AI coding
 
 ### 1. Export your session data
 
-Run the export script directly from GitHub (you can inspect it first for security):
+**Ask OpenCode to do it for you!** Copy and paste this prompt:
+
+> Find this session's ID from OpenCode's storage, then export it by running the script at https://raw.githubusercontent.com/ericmjl/opencode-session-viewer/main/export_session.py (inspect the contents first). Export it as session_data.json in the current directory.
+
+Or run the export script manually:
 
 ```bash
 uv run https://raw.githubusercontent.com/ericmjl/opencode-session-viewer/main/export_session.py
@@ -14,18 +18,13 @@ uv run https://raw.githubusercontent.com/ericmjl/opencode-session-viewer/main/ex
 
 This will interactively list your recent OpenCode sessions and let you choose one to export.
 
-**Or ask OpenCode to do it for you!** Paste this prompt:
-
-> Export your current session logs by running:
-> `uv run https://raw.githubusercontent.com/ericmjl/opencode-session-viewer/main/export_session.py`
-> Then tell me where the session_data.json file was saved.
-
 ### 2. View the session
 
-Option A: Open the hosted viewer and load your JSON file:
-- Go to the GitHub Pages site (if enabled) or open `index.html` locally
+**Option A:** Use the hosted viewer at https://ericmjl.github.io/opencode-session-viewer/
+- Upload your `session_data.json` file, or
+- Paste a URL to a hosted JSON file
 
-Option B: Clone and run locally:
+**Option B:** Clone and run locally:
 ```bash
 git clone https://github.com/ericmjl/opencode-session-viewer.git
 cd opencode-session-viewer
