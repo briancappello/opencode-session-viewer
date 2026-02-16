@@ -2,76 +2,70 @@
 
 A standalone HTML viewer for browsing OpenCode session logs. View your AI coding conversations with a clean timeline interface, token usage visualizations, and easy navigation.
 
-## Quick start
+This project now includes a **FastAPI web application** for browsing and viewing sessions directly from your local machine, supporting both the new SQLite database storage and legacy JSON files.
 
-### 1. Export your session data
+## Quick Start
 
-**Ask OpenCode to do it for you!** Copy and paste this prompt:
+### 1. Install Dependencies
 
-> Find this session's ID from OpenCode's storage, then export it by running the script at https://raw.githubusercontent.com/ericmjl/opencode-session-viewer/main/export_session.py (inspect the contents first). Export it as session_data.json in the current directory.
-
-Or run the export script manually:
+Using `uv`:
 
 ```bash
-uv run https://raw.githubusercontent.com/ericmjl/opencode-session-viewer/main/export_session.py
+uv sync
 ```
 
-This will interactively list your recent OpenCode sessions and let you choose one to export.
+### 2. Run the Web Dashboard
 
-### 2. View the session
+Start the local server to browse all your sessions:
 
-**Option A:** Use the hosted viewer at https://ericmjl.github.io/opencode-session-viewer/
-- Upload your `session_data.json` file, or
-- Paste a URL to a hosted JSON file
-
-**Option B:** Clone and run locally:
 ```bash
-git clone https://github.com/ericmjl/opencode-session-viewer.git
-cd opencode-session-viewer
-# Copy your session_data.json here, then:
-open index.html
+uv run uvicorn app.main:app --reload
 ```
 
-## Export script options
+Open **http://127.0.0.1:8000** in your browser.
+
+- **Dashboard:** View all sessions, filter by date, search, toggle subagents.
+- **Session Viewer:** Detailed timeline view with markdown rendering, syntax highlighting, and token usage charts.
+
+### 3. CLI Export (Optional)
+
+You can still use the CLI script to export sessions to a JSON file if needed:
 
 ```bash
-# Interactive mode (recommended)
+# Interactive mode
 uv run export_session.py
 
-# List all available sessions
+# List all sessions
 uv run export_session.py --list
 
-# Export a specific session by ID
+# Export specific session
 uv run export_session.py ses_abc123...
-
-# Custom output filename
-uv run export_session.py --output my_session.json
 ```
 
 ## Features
 
-- **Timeline view**: Scroll through your entire conversation
-- **Sidebar navigation**: Click to jump to any message
-- **Token visualization**: See input/output/cache tokens for each message
-- **Cache sparkline**: Track cache usage over the session
-- **Search & filter**: Find messages by content or filter by role
-- **Dark mode**: Toggle with the 🌓 button
-- **Collapsible tool calls**: Expand to see tool inputs/outputs
+- **Web Dashboard**: Browse all local sessions with metadata (model, directory, time).
+- **SQLite Support**: Reads directly from OpenCode's new SQLite database (`~/.local/share/opencode/opencode.db`).
+- **Legacy Support**: Also reads old JSON-based session files.
+- **Timeline View**: Scroll through your entire conversation with markdown rendering.
+- **Token Visualization**: See input/output/cache tokens for each message.
+- **Dark Mode**: Toggle with the 🌓 button.
+- **Search & Filter**: Find messages by content or role.
+- **Subagent Filtering**: Hide automated subagent sessions to focus on main conversations.
+- **Markdown Export**: Copy any message as markdown to your clipboard.
 
 ## How it works
 
-OpenCode stores session data in `~/.local/share/opencode/storage/`:
-- `session/` - Session metadata (title, directory, timestamps)
-- `message/<session_id>/` - Message metadata for each session
-- `part/<message_id>/` - Message content (text, tool calls, token counts)
+OpenCode stores session data in `~/.local/share/opencode/`. The viewer reads from:
+1.  **SQLite Database:** `opencode.db` (primary storage for recent sessions).
+2.  **Legacy Files:** `storage/session/`, `storage/message/`, `storage/part/` (for older sessions).
 
-The export script consolidates these into a single JSON file that the viewer can display.
+The application consolidates data from both sources into a unified interface.
 
 ## Privacy
 
-- All data stays local - the viewer runs entirely in your browser
-- Session data is never uploaded anywhere
-- You can inspect the export script before running it
+- All data stays local - the viewer runs entirely on your machine.
+- No data is uploaded anywhere.
 
 ## License
 

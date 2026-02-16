@@ -3,7 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OpenCode Session Viewer</title>
+    <title>OpenCode Session Viewer - {{ session.id }}</title>
+    <!-- Markdown & Syntax Highlighting -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.8/purify.min.js"></script>
     <style>
         * {
             box-sizing: border-box;
@@ -30,6 +35,8 @@
             --chart-in: #60a5fa;
             --chart-out: #f472b6;
             --chart-cache: #34d399;
+            --bg-btn-hover: #e8e7e4;
+            --border-table: #d0d0ce; /* Halfway between #e9e9e7 and #9b9a97 */
         }
         
         .dark {
@@ -44,6 +51,8 @@
             --text-tertiary: #6b6b6b;
             --border-color: #2f2f2f;
             --code-bg: #2f2f2f;
+            --bg-btn-hover: #363636;
+            --border-table: #4d4d4d; /* Halfway between #2f2f2f and #6b6b6b */
         }
         
         body {
@@ -61,7 +70,7 @@
         
         /* Sidebar */
         .sidebar {
-            width: 280px;
+            width: 560px;
             background: var(--bg-secondary);
             border-right: 1px solid var(--border-color);
             display: flex;
@@ -84,6 +93,16 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+        }
+
+        .back-link {
+            text-decoration: none;
+            color: var(--text-secondary);
+            margin-right: 8px;
+        }
+        
+        .back-link:hover {
+            color: var(--accent-blue);
         }
         
         .theme-toggle {
@@ -207,9 +226,11 @@
         .message-preview {
             font-size: 12px;
             color: var(--text-secondary);
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
+            /* overflow: hidden; */
+            /* text-overflow: ellipsis; */
+            /* white-space: nowrap; */
+            word-wrap: break-word;
+            line-height: 1.4;
         }
         
         /* Main content */
@@ -263,6 +284,29 @@
             align-items: center;
             gap: 10px;
         }
+
+        .copy-btn {
+            background: none;
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.2s ease;
+        }
+
+        .copy-btn:hover {
+            background: var(--bg-btn-hover);
+            color: var(--text-primary);
+        }
+
+        .copy-btn:active {
+            transform: scale(0.95);
+        }
         
         .message-meta {
             font-size: 11px;
@@ -285,10 +329,83 @@
         }
         
         .part-text {
-            white-space: pre-wrap;
+            white-space: normal;
             word-wrap: break-word;
             line-height: 1.7;
         }
+
+        /* Markdown Styles */
+        .part-text p { margin-bottom: 0.8em; }
+        .part-text p:last-child { margin-bottom: 0; }
+        .part-text ul, .part-text ol { margin-bottom: 1em; padding-left: 20px; }
+        .part-text li { margin-bottom: 0.25em; }
+        .part-text h1, .part-text h2, .part-text h3 { margin-top: 1.5em; margin-bottom: 0.5em; font-weight: 600; line-height: 1.25; }
+        .part-text h1 { font-size: 1.5em; border-bottom: 1px solid var(--border-color); padding-bottom: 0.3em; }
+        .part-text h2 { font-size: 1.3em; border-bottom: 1px solid var(--border-color); padding-bottom: 0.3em; }
+        .part-text h3 { font-size: 1.1em; }
+        .part-text a { color: var(--accent-blue); text-decoration: none; }
+        .part-text a:hover { text-decoration: underline; }
+        .part-text blockquote { border-left: 4px solid var(--border-color); padding-left: 16px; color: var(--text-secondary); margin: 1em 0; }
+        .part-text hr { border: none; border-bottom: 1px solid var(--border-color); margin: 2em 0; }
+        
+        /* Table Styles */
+        .part-text table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 1em 0;
+            border: 1px solid var(--border-table);
+        }
+        
+        .part-text th, .part-text td {
+            border: 1px solid var(--border-table);
+            padding: 8px 12px;
+            text-align: left;
+        }
+        
+        .part-text th {
+            background: var(--bg-secondary);
+            font-weight: 600;
+        }
+        
+        .part-text pre {
+            background: var(--code-bg);
+            padding: 12px;
+            border-radius: 6px;
+            overflow-x: auto;
+            margin: 1em 0;
+            font-size: 13px;
+            border: 1px solid var(--border-color);
+        }
+        
+        .part-text code {
+            font-family: "SFMono-Regular", Menlo, Consolas, monospace;
+            font-size: 0.9em;
+            background: rgba(0,0,0,0.06);
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+        
+        .dark .part-text code {
+            background: rgba(255,255,255,0.1);
+        }
+        
+        .part-text pre code {
+            background: transparent;
+            padding: 0;
+            border-radius: 0;
+            color: inherit;
+            border: none;
+        }
+        
+        /* Highlight.js Dark Mode Overrides */
+        .dark .hljs { background: transparent; color: #c9d1d9; }
+        .dark .hljs-doctag, .dark .hljs-keyword, .dark .hljs-meta .hljs-keyword, .dark .hljs-template-tag, .dark .hljs-template-variable, .dark .hljs-type, .dark .hljs-variable.language_ { color: #ff7b72; }
+        .dark .hljs-title, .dark .hljs-title.class_, .dark .hljs-title.class_.inherited__, .dark .hljs-title.function_ { color: #d2a8ff; }
+        .dark .hljs-attr, .dark .hljs-attribute, .dark .hljs-literal, .dark .hljs-meta, .dark .hljs-number, .dark .hljs-operator, .dark .hljs-variable, .dark .hljs-selector-attr, .dark .hljs-selector-class, .dark .hljs-selector-id { color: #79c0ff; }
+        .dark .hljs-regexp, .dark .hljs-string, .dark .hljs-meta .hljs-string { color: #a5d6ff; }
+        .dark .hljs-built_in, .dark .hljs-symbol { color: #ffa657; }
+        .dark .hljs-comment, .dark .hljs-code, .dark .hljs-formula { color: #8b949e; }
+        .dark .hljs-name, .dark .hljs-quote, .dark .hljs-selector-tag, .dark .hljs-selector-pseudo { color: #7ee787; }
         
         .part-tool {
             background: var(--bg-secondary);
@@ -391,6 +508,43 @@
             border-radius: 3px;
             font-family: "SFMono-Regular", Menlo, Consolas, monospace;
             font-size: 0.9em;
+        }
+        
+        .part-reasoning {
+            background: rgba(0,0,0,0.03);
+            border-left: 3px solid var(--accent-purple);
+            padding: 10px 14px;
+            margin: 12px 0;
+            border-radius: 0 4px 4px 0;
+            color: var(--text-secondary);
+            font-size: 0.95em;
+        }
+        
+        .dark .part-reasoning {
+            background: rgba(255,255,255,0.03);
+        }
+        
+        .reasoning-label {
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: var(--accent-purple);
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .subtask-prompt {
+            font-size: 0.9em;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+        }
+
+        .subtask-result {
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px dashed var(--border-color);
         }
         
         .part-text pre {
@@ -572,111 +726,6 @@
         .legend-dot.output { background: var(--chart-out); }
         .legend-dot.cache { background: var(--chart-cache); }
         
-        /* Loading state */
-        .loading-state {
-            text-align: center;
-            padding: 80px 20px;
-            color: var(--text-secondary);
-        }
-        
-        .loading-state h2 {
-            font-size: 18px;
-            font-weight: 500;
-            margin-bottom: 8px;
-            color: var(--text-primary);
-        }
-        
-        .file-input-wrapper {
-            margin-top: 20px;
-        }
-        
-        .file-input-wrapper input {
-            display: none;
-        }
-        
-        .file-input-label {
-            display: inline-block;
-            padding: 10px 20px;
-            background: var(--accent-blue);
-            color: white;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 14px;
-        }
-        
-        .file-input-label:hover {
-            opacity: 0.9;
-        }
-        
-        .load-divider {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin: 20px 0;
-            color: var(--text-tertiary);
-            font-size: 12px;
-        }
-        
-        .load-divider::before,
-        .load-divider::after {
-            content: '';
-            flex: 1;
-            height: 1px;
-            background: var(--border-color);
-        }
-        
-        .url-input-wrapper {
-            display: flex;
-            gap: 8px;
-            max-width: 500px;
-            margin: 0 auto;
-        }
-        
-        .url-input {
-            flex: 1;
-            padding: 10px 14px;
-            background: var(--bg-secondary);
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            color: var(--text-primary);
-            font-size: 14px;
-        }
-        
-        .url-input:focus {
-            outline: none;
-            border-color: var(--accent-blue);
-        }
-        
-        .url-input::placeholder {
-            color: var(--text-tertiary);
-        }
-        
-        .url-load-btn {
-            padding: 10px 20px;
-            background: var(--accent-green);
-            color: white;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 14px;
-            white-space: nowrap;
-        }
-        
-        .url-load-btn:hover {
-            opacity: 0.9;
-        }
-        
-        .url-load-btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-        
-        .load-error {
-            color: #dc2626;
-            font-size: 12px;
-            margin-top: 12px;
-        }
-        
         ::-webkit-scrollbar {
             width: 8px;
             height: 8px;
@@ -702,10 +751,18 @@
 </head>
 <body>
     <div class="container">
+        <!-- Hidden data script -->
+        <script id="session-data" type="application/json">
+{{ session_json | safe }}
+        </script>
+        
         <div class="sidebar">
             <div class="sidebar-header">
                 <div class="sidebar-title">
-                    Session Viewer
+                    <span>
+                        <a href="/" class="back-link">←</a>
+                        Session Viewer
+                    </span>
                     <button class="theme-toggle" onclick="toggleTheme()" title="Toggle dark mode">🌓</button>
                 </div>
                 <input type="text" class="search-box" placeholder="Search..." id="searchBox">
@@ -720,31 +777,7 @@
         </div>
         <div class="main-content" id="mainContent">
             <div class="timeline" id="timeline">
-                <div class="loading-state" id="loadingState">
-                    <h2>OpenCode Session Viewer</h2>
-                    <p style="max-width: 500px; margin: 0 auto 24px;">View and explore your OpenCode AI coding session logs with a clean timeline interface.</p>
-                    
-                    <div style="background: var(--bg-secondary); border-radius: 8px; padding: 20px; max-width: 600px; margin: 0 auto 24px; text-align: left; border: 1px solid var(--border-color);">
-                        <div style="font-weight: 600; margin-bottom: 12px;">How to export your session data:</div>
-                        <p style="margin-bottom: 12px;">Copy and paste this prompt into OpenCode:</p>
-                        <div style="background: var(--code-bg); padding: 12px; border-radius: 6px; font-size: 12px; overflow-x: auto; margin-bottom: 12px; white-space: pre-wrap; line-height: 1.5;">Find this session's ID from OpenCode's storage, then export it by running the script at https://raw.githubusercontent.com/ericmjl/opencode-session-viewer/main/export_session.py (inspect the contents first). Export it as session_data.json in the current directory.</div>
-                        <p style="font-size: 12px; color: var(--text-secondary);">Or run manually: <code style="background: var(--code-bg); padding: 2px 5px; border-radius: 3px;">uv run https://raw.githubusercontent.com/ericmjl/opencode-session-viewer/main/export_session.py</code></p>
-                    </div>
-                    
-                    <div class="file-input-wrapper">
-                        <label class="file-input-label">
-                            Choose session_data.json
-                            <input type="file" id="fileInput" accept=".json">
-                        </label>
-                    </div>
-                    <div class="load-divider">or load from URL</div>
-                    <div class="url-input-wrapper">
-                        <input type="text" class="url-input" id="urlInput" placeholder="https://example.com/session_data.json">
-                        <button class="url-load-btn" id="urlLoadBtn" onclick="loadFromUrl()">Load</button>
-                    </div>
-                    <div class="load-error" id="loadError" style="display: none;"></div>
-
-                </div>
+                <!-- Loading state removed as data is injected -->
             </div>
         </div>
         <div class="viz-panel" id="vizPanel">
@@ -843,7 +876,12 @@
         // Get preview
         function getPreview(msg) {
             const textPart = msg.parts?.find(p => p.type === 'text');
-            if (textPart?.text) return textPart.text.substring(0, 80);
+            if (textPart?.text) {
+                // Return first paragraph (split by double newline or newline)
+                const text = textPart.text.trim();
+                const firstPara = text.split(/\n\s*\n/)[0]; 
+                return firstPara.length > 300 ? firstPara.substring(0, 300) + '...' : firstPara;
+            }
             const toolPart = msg.parts?.find(p => p.type === 'tool');
             if (toolPart) return `[${toolPart.tool}]`;
             return msg.summary?.title || '';
@@ -997,6 +1035,44 @@
                 });
             }
         }
+
+        // Copy markdown to clipboard
+        function copyMarkdown(idx) {
+            const msg = SESSION_DATA.messages[idx];
+            if (!msg) return;
+
+            let markdown = "";
+            (msg.parts || []).forEach(p => {
+                if (p.type === 'text' && p.text) {
+                    markdown += p.text + "\n\n";
+                } else if (p.type === 'tool') {
+                    const st = p.state || {};
+                    markdown += `> **Tool: ${p.tool}**\n`;
+                    if (st.title) markdown += `> ${st.title}\n`;
+                    if (st.input) markdown += "```json\n" + JSON.stringify(st.input, null, 2) + "\n```\n";
+                    if (st.output) {
+                        markdown += "#### Output\n";
+                        markdown += "```\n" + (typeof st.output === 'string' ? st.output : JSON.stringify(st.output, null, 2)) + "\n```\n";
+                    }
+                    markdown += "\n";
+                }
+            });
+
+            navigator.clipboard.writeText(markdown.trim()).then(() => {
+                const btn = document.querySelector(`#msg-${idx} .copy-btn`);
+                const originalHtml = btn.innerHTML;
+                btn.innerHTML = '<span>✅</span> Copied';
+                btn.style.borderColor = 'var(--accent-green)';
+                btn.style.color = 'var(--accent-green)';
+                setTimeout(() => {
+                    btn.innerHTML = originalHtml;
+                    btn.style.borderColor = '';
+                    btn.style.color = '';
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy: ', err);
+            });
+        }
         
         // Render sidebar list
         function renderSidebar() {
@@ -1004,8 +1080,13 @@
             
             const filtered = SESSION_DATA.messages.filter((m, i) => {
                 if (currentFilter !== 'all' && m.role !== currentFilter) return false;
+                
+                const preview = getPreview(m);
+                // Filter out bracketed previews like [bash], [edit], etc.
+                if (/^\[.*?\]$/.test(preview.trim())) return false;
+                
                 if (searchQuery) {
-                    const text = getPreview(m).toLowerCase();
+                    const text = preview.toLowerCase();
                     if (!text.includes(searchQuery)) return false;
                 }
                 return true;
@@ -1028,11 +1109,67 @@
         
         // Render part
         function renderPart(part) {
+            // Check for reasoning types
+            const isReasoning = 
+                (part.type === 'reasoning' && part.text) || 
+                (part.type === 'tool' && part.tool === 'task' && part.state?.input?.subagent_type);
+
+            if (isReasoning) {
+                // Determine content based on reasoning type
+                let content = '';
+                let label = '';
+                
+                if (part.type === 'reasoning') {
+                    label = 'Thinking Process';
+                    content = DOMPurify.sanitize(marked.parse(part.text));
+                } else {
+                    // It's a subtask (tool call)
+                    const st = part.state || {};
+                    const prompt = st.input?.prompt || st.input?.description || '';
+                    const result = st.output || '';
+                    const subagent = st.input?.subagent_type || 'task';
+                    
+                    label = `Subtask: ${subagent}`;
+                    
+                    // Format subtask content
+                    content = `
+                        <div class="subtask-prompt"><strong>Task:</strong> ${esc(prompt)}</div>
+                        ${result ? `<div class="subtask-result">${DOMPurify.sanitize(marked.parse(typeof result === 'string' ? result : JSON.stringify(result, null, 2)))}</div>` : ''}
+                    `;
+                }
+
+                return `
+                    <div class="part part-reasoning">
+                        <div class="reasoning-label"><span>${part.type === 'reasoning' ? '🧠' : '🤖'}</span> ${label}</div>
+                        <div class="part-text">${content}</div>
+                    </div>
+                `;
+            }
+
             if (part.type === 'text' && part.text) {
-                return `<div class="part"><div class="part-text">${esc(part.text)}</div></div>`;
+                // Parse markdown and sanitize HTML
+                const rawHtml = marked.parse(part.text);
+                const cleanHtml = DOMPurify.sanitize(rawHtml);
+                return `<div class="part"><div class="part-text">${cleanHtml}</div></div>`;
+            }
+            
+            if (part.type === 'reasoning' && part.text) {
+                // Parse markdown and sanitize HTML
+                const rawHtml = marked.parse(part.text);
+                const cleanHtml = DOMPurify.sanitize(rawHtml);
+                return `
+                    <div class="part part-reasoning">
+                        <div class="reasoning-label"><span>🧠</span> Thinking Process</div>
+                        <div class="part-text">${cleanHtml}</div>
+                    </div>
+                `;
             }
             
             if (part.type === 'tool') {
+                // If this was handled as reasoning/subtask, skip it here
+                const isSubtask = part.tool === 'task' && part.state?.input?.subagent_type;
+                if (isSubtask) return '';
+
                 const st = part.state || {};
                 const id = 'tool-' + (toolCounter++);
                 return `
@@ -1087,23 +1224,32 @@
             
             toolCounter = 0;
             const timeline = document.getElementById('timeline');
-            timeline.innerHTML = SESSION_DATA.messages.map((m, i) => `
-                <div class="message ${m.role}" id="msg-${i}">
-                    <div class="message-header">
-                        <div class="message-header-left">
-                            <span class="role-badge ${m.role}">${m.role}</span>
-                            <span class="message-meta">
-                                <span>${formatFullTime(m.time?.created)}</span>
-                                ${m.modelID ? `<span>${m.modelID}</span>` : ''}
-                                ${m.agent ? `<span>${m.agent}</span>` : ''}
-                            </span>
+            timeline.innerHTML = SESSION_DATA.messages
+                .filter(m => !/^\[.*?\]$/.test(getPreview(m).trim()))
+                .map((m, i) => {
+                    // We need to use the original index to keep links working
+                    const originalIdx = SESSION_DATA.messages.indexOf(m);
+                    return `
+                        <div class="message ${m.role}" id="msg-${originalIdx}">
+                            <div class="message-header">
+                                <div class="message-header-left">
+                                    <span class="role-badge ${m.role}">${m.role}</span>
+                                    <span class="message-meta">
+                                        <span>${formatFullTime(m.time?.created)}</span>
+                                        ${m.modelID ? `<span>${m.modelID}</span>` : ''}
+                                        ${m.agent ? `<span>${m.agent}</span>` : ''}
+                                    </span>
+                                </div>
+                                <button class="copy-btn" onclick="copyMarkdown(${originalIdx})" title="Copy markdown to clipboard">
+                                    <span>📋</span> Copy
+                                </button>
+                            </div>
+                            <div class="message-body">
+                                ${(m.parts || []).map(p => renderPart(p)).join('') || '<span style="color:var(--text-tertiary)">(no content)</span>'}
+                            </div>
                         </div>
-                    </div>
-                    <div class="message-body">
-                        ${(m.parts || []).map(p => renderPart(p)).join('') || '<span style="color:var(--text-tertiary)">(no content)</span>'}
-                    </div>
-                </div>
-            `).join('');
+                    `;
+                }).join('');
         }
         
         // Update stats
@@ -1122,7 +1268,6 @@
         // Load data
         function loadData(data) {
             SESSION_DATA = data;
-            document.getElementById('loadingState')?.remove();
             buildTokenData();
             updateStats();
             renderSidebar();
@@ -1131,70 +1276,6 @@
             
             // Add scroll listener
             document.getElementById('mainContent').addEventListener('scroll', detectVisibleMessage);
-        }
-        
-        // File input
-        document.getElementById('fileInput').addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (ev) => {
-                    try {
-                        loadData(JSON.parse(ev.target.result));
-                    } catch (err) {
-                        alert('Error parsing JSON: ' + err.message);
-                    }
-                };
-                reader.readAsText(file);
-            }
-        });
-        
-        // URL input - load on Enter key
-        document.getElementById('urlInput').addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                loadFromUrl();
-            }
-        });
-        
-        // Load from URL
-        async function loadFromUrl() {
-            const urlInput = document.getElementById('urlInput');
-            const loadBtn = document.getElementById('urlLoadBtn');
-            const errorDiv = document.getElementById('loadError');
-            const url = urlInput.value.trim();
-            
-            if (!url) {
-                errorDiv.textContent = 'Please enter a URL';
-                errorDiv.style.display = 'block';
-                return;
-            }
-            
-            // Basic URL validation
-            try {
-                new URL(url);
-            } catch {
-                errorDiv.textContent = 'Please enter a valid URL';
-                errorDiv.style.display = 'block';
-                return;
-            }
-            
-            errorDiv.style.display = 'none';
-            loadBtn.disabled = true;
-            loadBtn.textContent = 'Loading...';
-            
-            try {
-                const response = await fetch(url);
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-                const data = await response.json();
-                loadData(data);
-            } catch (err) {
-                errorDiv.textContent = `Failed to load: ${err.message}`;
-                errorDiv.style.display = 'block';
-                loadBtn.disabled = false;
-                loadBtn.textContent = 'Load URL';
-            }
         }
         
         // Filter buttons
@@ -1218,11 +1299,17 @@
             renderSparkline();
         });
         
-        // Auto-load
-        fetch('session_data.json')
-            .then(r => r.json())
-            .then(data => loadData(data))
-            .catch(() => {});
+        // Load data from script tag
+        try {
+            const jsonText = document.getElementById('session-data').textContent;
+            const INITIAL_DATA = JSON.parse(jsonText);
+            if (INITIAL_DATA) {
+                loadData(INITIAL_DATA);
+            }
+        } catch (e) {
+            console.error("Failed to parse session data:", e);
+        }
     </script>
 </body>
 </html>
+
