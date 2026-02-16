@@ -1,12 +1,10 @@
-import json
-
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
-from app.services import export_session, format_timestamp, get_storage_path, list_sessions
+from app.services import load_session_export, format_timestamp, get_storage_path, list_sessions
 
 
 app = FastAPI(title="OpenCode Session Viewer")
@@ -29,23 +27,25 @@ async def dashboard(request: Request, all: bool = False):
 
     display_sessions = []
     for s in sessions:
-        # Format updated time
-        updated_ts = s.get("time", {}).get("updated")
-        updated_str = format_timestamp(updated_ts)
+        s_dict = s.model_dump()
 
         # Shorten directory
-        directory = s.get("directory", "")
+        directory = s.directory or ""
         dir_short = directory
         if len(directory) > 40:
             dir_short = "..." + directory[-37:]
 
-        s["updated_formatted"] = updated_str
-        s["directory_short"] = dir_short
-        display_sessions.append(s)
+        s_dict["updated_formatted"] = format_timestamp(s.time_updated)
+        s_dict["directory_short"] = dir_short
+        display_sessions.append(s_dict)
 
     return templates.TemplateResponse(
         "dashboard.html",
-        {"request": request, "sessions": display_sessions, "show_all": all},
+        {
+            "request": request,
+            "sessions": display_sessions,
+            "show_all": all,
+        },
     )
 
 
@@ -54,11 +54,11 @@ async def view_session(request: Request, session_id: str):
     storage_path = get_storage_path()
 
     try:
-        session_data = export_session(storage_path, session_id)
+        session_data = load_session_export(storage_path, session_id)
 
         # We need to pass the JSON as a string to the template for injection
         # Escape forward slashes to prevent </script> attacks/breakage
-        session_json = json.dumps(session_data).replace("</", "<\\/")
+        session_json = session_data.model_dump_json().replace("</", "<\\/")
 
         return templates.TemplateResponse(
             "session.html",

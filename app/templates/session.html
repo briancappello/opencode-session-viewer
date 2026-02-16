@@ -1099,7 +1099,7 @@
                     <div class="message-item" data-index="${idx}" onclick="scrollToMessage(${idx})">
                         <div class="message-item-header">
                             <span class="role-badge ${m.role}">${m.role}</span>
-                            <span class="message-time">${formatTime(m.time?.created)}</span>
+                            <span class="message-time">${formatTime(m.time_created)}</span>
                         </div>
                         <div class="message-preview">${esc(getPreview(m))}</div>
                     </div>
@@ -1235,7 +1235,7 @@
                                 <div class="message-header-left">
                                     <span class="role-badge ${m.role}">${m.role}</span>
                                     <span class="message-meta">
-                                        <span>${formatFullTime(m.time?.created)}</span>
+                                        <span>${formatFullTime(m.time_created)}</span>
                                         ${m.modelID ? `<span>${m.modelID}</span>` : ''}
                                         ${m.agent ? `<span>${m.agent}</span>` : ''}
                                     </span>
