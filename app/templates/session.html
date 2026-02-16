@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OpenCode Session Viewer - {{ session.id }}</title>
+    <title>{{ session.summary.title }} | OpenCode Session Viewer</title>
     <!-- Markdown & Syntax Highlighting -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
@@ -761,7 +761,7 @@
                 <div class="sidebar-title">
                     <span>
                         <a href="/" class="back-link">←</a>
-                        Session Viewer
+                        {{ session.summary.title }}
                     </span>
                     <button class="theme-toggle" onclick="toggleTheme()" title="Toggle dark mode">🌓</button>
                 </div>
@@ -1312,4 +1312,3 @@
     </script>
 </body>
 </html>
-

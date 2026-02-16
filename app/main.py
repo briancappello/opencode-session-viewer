@@ -64,7 +64,7 @@ async def view_session(request: Request, session_id: str):
             "session.html",
             {
                 "request": request,
-                "session": {"id": session_id},
+                "session": session_data,
                 "session_json": session_json,
             },
         )

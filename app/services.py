@@ -70,6 +70,11 @@ def list_sessions_from_db(db_path: Path) -> List[SessionSummary]:
         print(f"Warning: Failed to load sessions from DB: {e}", file=sys.stderr)
     return results
 
+def get_session_summary_from_files(storage_path: Path, session_id: str) -> SessionSummary | None:
+    try:
+        return [x for x in list_sessions_from_files(storage_path) if x.id == session_id][0]
+    except IndexError:
+        return None
 
 def list_sessions_from_files(storage_path: Path) -> List[SessionSummary]:
     """List sessions from legacy JSON files."""
@@ -92,6 +97,7 @@ def list_sessions_from_files(storage_path: Path) -> List[SessionSummary]:
                     results.append(summary)
                 except Exception:
                     continue
+
     return results
 
 
@@ -152,9 +158,7 @@ def export_session_from_db(db_path: Path, session_id: str) -> SessionExport:
             messages = [Message.model_validate(m) for m in message_models]
 
             return SessionExport(
-                sessionID=session_id,
-                exportedAt=datetime.now().isoformat(),
-                messageCount=len(messages),
+                summary=SessionSummary.model_validate(session_model),
                 messages=messages,
             )
 
@@ -198,9 +202,7 @@ def export_session_from_files(storage_path: Path, session_id: str) -> SessionExp
     messages.sort(key=lambda m: m.time_created or 0)
 
     return SessionExport(
-        sessionID=session_id,
-        exportedAt=datetime.now().isoformat(),
-        messageCount=len(messages),
+        summary=get_session_summary_from_files(storage_path, session_id),
         messages=messages,
     )
 

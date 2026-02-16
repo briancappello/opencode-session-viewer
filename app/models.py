@@ -99,7 +99,5 @@ class SessionSummary(BaseModel):
 class SessionExport(BaseModel):
     """Full session export."""
 
-    sessionID: str
-    exportedAt: str
-    messageCount: int
+    summary: SessionSummary
     messages: List[Message]
