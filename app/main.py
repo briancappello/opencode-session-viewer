@@ -4,7 +4,12 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
-from app.services import load_session_export, format_timestamp, get_storage_path, list_sessions
+from app.services import (
+    format_timestamp,
+    get_storage_path,
+    list_sessions,
+    load_session_export,
+)
 
 
 app = FastAPI(title="OpenCode Session Viewer")
