@@ -17,6 +17,9 @@ env/
 # Application Output
 session_data.json
 *.log
+search_index.db
+search_index.db-shm
+search_index.db-wal
 
 # Build / Distribution
 dist/

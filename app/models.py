@@ -101,3 +101,27 @@ class SessionExport(BaseModel):
 
     summary: SessionSummary
     messages: List[Message]
+
+
+# --- Search Models ---
+
+
+class SearchMatch(BaseModel):
+    """A single search match within a session."""
+
+    part_id: str
+    message_id: str
+    role: str
+    snippet: str  # Text snippet with match context
+    time_created: Optional[int] = None
+
+
+class SearchResult(BaseModel):
+    """Search result for a session."""
+
+    session_id: str
+    title: Optional[str] = None
+    directory: Optional[str] = None
+    time_updated: Optional[int] = None
+    matches: List[SearchMatch] = Field(default_factory=list)
+    total_matches: int = 0

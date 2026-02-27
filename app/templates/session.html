@@ -233,6 +233,42 @@
             line-height: 1.4;
         }
         
+        .message-preview mark {
+            background: rgba(35, 131, 226, 0.3);
+            color: var(--text-primary);
+            padding: 1px 2px;
+            border-radius: 2px;
+        }
+        
+        .search-active-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            margin: 8px 14px;
+            background: rgba(35, 131, 226, 0.1);
+            border: 1px solid rgba(35, 131, 226, 0.3);
+            border-radius: 4px;
+            font-size: 12px;
+            color: var(--accent-blue);
+        }
+        
+        .search-active-indicator .clear-search {
+            margin-left: auto;
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 14px;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+        
+        .search-active-indicator .clear-search:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+        }
+        
         /* Main content */
         .main-content {
             flex: 1;
@@ -843,6 +879,13 @@
         let tokenData = [];
         let maxTokens = { input: 1, output: 1, cache: 1 };
         let currentMessageIndex = 0;
+        let urlSearchQuery = ''; // Search query from URL (for highlighting)
+        
+        // Get search query from URL parameters
+        function getUrlSearchQuery() {
+            const params = new URLSearchParams(window.location.search);
+            return params.get('q') || '';
+        }
         
         // Theme
         function toggleTheme() {
@@ -885,6 +928,58 @@
             const toolPart = msg.parts?.find(p => p.type === 'tool');
             if (toolPart) return `[${toolPart.tool}]`;
             return msg.summary?.title || '';
+        }
+        
+        // Get full text content of a message for searching
+        function getFullText(msg) {
+            let text = '';
+            (msg.parts || []).forEach(p => {
+                if (p.type === 'text' && p.text) {
+                    text += p.text + ' ';
+                }
+            });
+            return text.toLowerCase();
+        }
+        
+        // Highlight search terms in text
+        function highlightText(text, query) {
+            if (!query) return esc(text);
+            
+            // Escape the text first
+            const escaped = esc(text);
+            
+            // Create a case-insensitive regex for the search term
+            // Escape regex special characters in the query
+            const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(`(${escapedQuery})`, 'gi');
+            
+            return escaped.replace(regex, '<mark>$1</mark>');
+        }
+        
+        // Get a snippet around the search match
+        function getMatchSnippet(msg, query) {
+            if (!query) return null;
+            
+            const textPart = msg.parts?.find(p => p.type === 'text' && p.text);
+            if (!textPart?.text) return null;
+            
+            const text = textPart.text;
+            const lowerText = text.toLowerCase();
+            const lowerQuery = query.toLowerCase();
+            const matchIndex = lowerText.indexOf(lowerQuery);
+            
+            if (matchIndex === -1) return null;
+            
+            // Get context around the match
+            const contextSize = 100;
+            const start = Math.max(0, matchIndex - contextSize);
+            const end = Math.min(text.length, matchIndex + query.length + contextSize);
+            
+            let snippet = text.substring(start, end);
+            if (start > 0) snippet = '...' + snippet;
+            if (end < text.length) snippet = snippet + '...';
+            
+            return snippet;
         }
         
         // Extract token data from message
@@ -1078,6 +1173,9 @@
         function renderSidebar() {
             if (!SESSION_DATA) return;
             
+            // Determine which search query to use for filtering
+            const activeSearch = searchQuery || urlSearchQuery;
+            
             const filtered = SESSION_DATA.messages.filter((m, i) => {
                 if (currentFilter !== 'all' && m.role !== currentFilter) return false;
                 
@@ -1085,9 +1183,10 @@
                 // Filter out bracketed previews like [bash], [edit], etc.
                 if (/^\[.*?\]$/.test(preview.trim())) return false;
                 
-                if (searchQuery) {
-                    const text = preview.toLowerCase();
-                    if (!text.includes(searchQuery)) return false;
+                if (activeSearch) {
+                    // Search in full message text, not just preview
+                    const fullText = getFullText(m);
+                    if (!fullText.includes(activeSearch.toLowerCase())) return false;
                 }
                 return true;
             });
@@ -1095,16 +1194,63 @@
             const list = document.getElementById('messageList');
             list.innerHTML = filtered.map(m => {
                 const idx = SESSION_DATA.messages.indexOf(m);
+                
+                // Determine what to show as preview
+                let previewHtml;
+                if (activeSearch) {
+                    // Try to get a snippet around the match
+                    const snippet = getMatchSnippet(m, activeSearch);
+                    if (snippet) {
+                        previewHtml = highlightText(snippet, activeSearch);
+                    } else {
+                        previewHtml = highlightText(getPreview(m), activeSearch);
+                    }
+                } else {
+                    previewHtml = esc(getPreview(m));
+                }
+                
                 return `
                     <div class="message-item" data-index="${idx}" onclick="scrollToMessage(${idx})">
                         <div class="message-item-header">
                             <span class="role-badge ${m.role}">${m.role}</span>
                             <span class="message-time">${formatTime(m.time_created)}</span>
                         </div>
-                        <div class="message-preview">${esc(getPreview(m))}</div>
+                        <div class="message-preview">${previewHtml}</div>
                     </div>
                 `;
             }).join('');
+        }
+        
+        // Render search indicator when URL has search query
+        function renderSearchIndicator() {
+            const container = document.querySelector('.filter-row');
+            const existingIndicator = document.querySelector('.search-active-indicator');
+            
+            if (existingIndicator) {
+                existingIndicator.remove();
+            }
+            
+            if (urlSearchQuery && !searchQuery) {
+                const indicator = document.createElement('div');
+                indicator.className = 'search-active-indicator';
+                indicator.innerHTML = `
+                    <span>Filtered by: "${esc(urlSearchQuery)}"</span>
+                    <button class="clear-search" onclick="clearUrlSearch()" title="Clear search filter">×</button>
+                `;
+                container.parentNode.insertBefore(indicator, container.nextSibling);
+            }
+        }
+        
+        // Clear URL search and show all messages
+        function clearUrlSearch() {
+            urlSearchQuery = '';
+            // Update URL without the query parameter
+            const url = new URL(window.location);
+            url.searchParams.delete('q');
+            window.history.replaceState({}, '', url);
+            
+            renderSearchIndicator();
+            renderSidebar();
         }
         
         // Render part
@@ -1268,14 +1414,34 @@
         // Load data
         function loadData(data) {
             SESSION_DATA = data;
+            
+            // Initialize URL search query
+            urlSearchQuery = getUrlSearchQuery();
+            if (urlSearchQuery) {
+                // Pre-populate the search box with the query
+                document.getElementById('searchBox').value = urlSearchQuery;
+            }
+            
             buildTokenData();
             updateStats();
+            renderSearchIndicator();
             renderSidebar();
             renderTimeline();
             updateViz(0);
             
             // Add scroll listener
             document.getElementById('mainContent').addEventListener('scroll', detectVisibleMessage);
+            
+            // If there's a URL search query, scroll to first matching message
+            if (urlSearchQuery) {
+                const firstMatch = SESSION_DATA.messages.findIndex(m => {
+                    const fullText = getFullText(m);
+                    return fullText.includes(urlSearchQuery.toLowerCase());
+                });
+                if (firstMatch !== -1) {
+                    setTimeout(() => scrollToMessage(firstMatch), 100);
+                }
+            }
         }
         
         // Filter buttons
@@ -1291,6 +1457,16 @@
         // Search
         document.getElementById('searchBox').addEventListener('input', (e) => {
             searchQuery = e.target.value.toLowerCase();
+            
+            // If user clears the search box, restore URL search behavior
+            if (!searchQuery && urlSearchQuery) {
+                renderSearchIndicator();
+            } else if (searchQuery) {
+                // Hide the URL search indicator when user is typing
+                const indicator = document.querySelector('.search-active-indicator');
+                if (indicator) indicator.remove();
+            }
+            
             renderSidebar();
         });
         

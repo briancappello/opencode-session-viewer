@@ -5,14 +5,17 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from app.db import MessageModel, SessionModel, get_db_session
 from app.models import (
     Message,
+    SearchMatch,
+    SearchResult,
     SessionExport,
     SessionSummary,
 )
+from app.search_db import SEARCH_DB_PATH, get_search_session
 
 
 def get_storage_path() -> Path:
@@ -253,3 +256,122 @@ def _transform_legacy_message(data: dict) -> dict:
             if "time" in part and isinstance(part["time"], dict):
                 part["time_created"] = part["time"].get("created")
     return data
+
+
+def search_sessions(
+    query: str,
+    directory: Optional[str] = None,
+    limit: int = 50,
+    snippet_length: int = 100,
+) -> List[SearchResult]:
+    """Search sessions using FTS5 full-text search.
+
+    Args:
+        query: The search query (supports FTS5 syntax)
+        directory: Optional directory filter (partial match)
+        limit: Maximum number of sessions to return
+        snippet_length: Approximate length of text snippets
+
+    Returns:
+        List of SearchResult objects with matching sessions and snippets
+    """
+    if not SEARCH_DB_PATH.exists():
+        return []
+
+    # Escape special FTS5 characters in query for safety
+    # Allow basic operators like AND, OR, NOT, quotes
+    safe_query = query.strip()
+    if not safe_query:
+        return []
+
+    results_map: dict[str, SearchResult] = {}
+
+    with get_search_session() as db:
+        # Build the FTS5 query with optional directory filter
+        # We join part_fts with part_index and session_index
+        sql = """
+            SELECT
+                p.id as part_id,
+                p.session_id,
+                p.message_id,
+                p.role,
+                p.content,
+                p.time_created,
+                s.title,
+                s.directory,
+                s.time_updated,
+                snippet(part_fts, 0, '<<MATCH>>', '<<END>>', '...', :snippet_tokens) as snippet
+            FROM part_fts f
+            JOIN part_index p ON f.rowid = p.rowid
+            JOIN session_index s ON p.session_id = s.id
+            WHERE part_fts MATCH :query
+        """
+
+        params = {
+            "query": safe_query,
+            "snippet_tokens": snippet_length // 5,  # Approximate tokens
+        }
+
+        if directory:
+            sql += " AND s.directory LIKE :directory"
+            params["directory"] = f"%{directory}%"
+
+        sql += " ORDER BY s.time_updated DESC LIMIT :limit"
+        params["limit"] = limit * 10  # Get more matches, we'll group by session
+
+        try:
+            rows = db.execute(text(sql), params).fetchall()
+        except Exception as e:
+            # FTS5 query syntax error - return empty results
+            print(f"Search query error: {e}", file=sys.stderr)
+            return []
+
+        # Group matches by session
+        for row in rows:
+            session_id = row.session_id
+
+            if session_id not in results_map:
+                results_map[session_id] = SearchResult(
+                    session_id=session_id,
+                    title=row.title,
+                    directory=row.directory,
+                    time_updated=row.time_updated,
+                    matches=[],
+                    total_matches=0,
+                )
+
+            result = results_map[session_id]
+            result.total_matches += 1
+
+            # Only keep first few matches per session for display
+            if len(result.matches) < 3:
+                result.matches.append(
+                    SearchMatch(
+                        part_id=row.part_id,
+                        message_id=row.message_id,
+                        role=row.role,
+                        snippet=row.snippet or row.content[:snippet_length],
+                        time_created=row.time_created,
+                    )
+                )
+
+        # Convert to list and limit
+        results = list(results_map.values())[:limit]
+
+    return results
+
+
+def list_directories() -> List[str]:
+    """Get a list of unique directories from indexed sessions."""
+    if not SEARCH_DB_PATH.exists():
+        return []
+
+    with get_search_session() as db:
+        sql = """
+            SELECT DISTINCT directory
+            FROM session_index
+            WHERE directory IS NOT NULL AND directory != ''
+            ORDER BY directory
+        """
+        rows = db.execute(text(sql)).fetchall()
+        return [row[0] for row in rows]

@@ -169,6 +169,125 @@
             padding: 40px;
             color: var(--text-secondary);
         }
+        
+        /* Search styles */
+        .search-container {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        
+        .search-input {
+            flex: 1;
+            min-width: 200px;
+            padding: 10px 14px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+        
+        .search-input:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+        }
+        
+        .search-input::placeholder {
+            color: var(--text-tertiary);
+        }
+        
+        .directory-select {
+            padding: 10px 14px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            font-size: 14px;
+            min-width: 200px;
+        }
+        
+        .directory-select:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+        }
+        
+        .search-btn {
+            padding: 10px 20px;
+            background: var(--accent-blue);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        
+        .search-btn:hover {
+            opacity: 0.9;
+        }
+        
+        .search-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .clear-btn {
+            padding: 10px 16px;
+            background: var(--bg-hover);
+            color: var(--text-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .clear-btn:hover {
+            background: var(--bg-selected);
+        }
+        
+        .search-results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            padding: 8px 0;
+            color: var(--text-secondary);
+            font-size: 13px;
+        }
+        
+        .match-snippet {
+            margin-top: 8px;
+            padding: 8px 12px;
+            background: rgba(0,0,0,0.03);
+            border-radius: 4px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            border-left: 3px solid var(--accent-blue);
+        }
+        
+        .dark .match-snippet {
+            background: rgba(255,255,255,0.03);
+        }
+        
+        .match-snippet mark {
+            background: rgba(35, 131, 226, 0.3);
+            color: var(--text-primary);
+            padding: 1px 2px;
+            border-radius: 2px;
+        }
+        
+        .match-role {
+            font-size: 11px;
+            text-transform: uppercase;
+            color: var(--text-tertiary);
+            margin-bottom: 4px;
+        }
+        
+        .hidden {
+            display: none !important;
+        }
     </style>
 </head>
 <body>
@@ -183,7 +302,20 @@
             </div>
         </div>
         
-        <div class="session-list">
+        <div class="search-container">
+            <input type="text" id="searchInput" class="search-input" placeholder="Search session contents..." />
+            <select id="directorySelect" class="directory-select">
+                <option value="">All directories</option>
+            </select>
+            <button onclick="performSearch()" class="search-btn" id="searchBtn">Search</button>
+            <button onclick="clearSearch()" class="clear-btn hidden" id="clearBtn">Clear</button>
+        </div>
+        
+        <div id="searchResultsHeader" class="search-results-header hidden">
+            <span id="searchResultsCount"></span>
+        </div>
+        
+        <div class="session-list" id="sessionList">
             {% for session in sessions %}
             <a href="/session/{{ session.id }}" class="session-item">
                 <div class="session-header">
@@ -227,6 +359,155 @@
         } else if (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches) {
             document.body.classList.add('dark');
         }
+        
+        // Search functionality
+        const searchInput = document.getElementById('searchInput');
+        const directorySelect = document.getElementById('directorySelect');
+        const searchBtn = document.getElementById('searchBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const sessionList = document.getElementById('sessionList');
+        const searchResultsHeader = document.getElementById('searchResultsHeader');
+        const searchResultsCount = document.getElementById('searchResultsCount');
+        
+        // Store original content
+        const originalContent = sessionList.innerHTML;
+        
+        // Load directories on page load
+        async function loadDirectories() {
+            try {
+                const response = await fetch('/api/directories');
+                const directories = await response.json();
+                directories.forEach(dir => {
+                    const option = document.createElement('option');
+                    option.value = dir;
+                    // Shorten for display
+                    const shortDir = dir.length > 50 ? '...' + dir.slice(-47) : dir;
+                    option.textContent = shortDir;
+                    option.title = dir;
+                    directorySelect.appendChild(option);
+                });
+            } catch (e) {
+                console.error('Failed to load directories:', e);
+            }
+        }
+        
+        async function performSearch() {
+            const query = searchInput.value.trim();
+            const directory = directorySelect.value;
+            
+            if (!query && !directory) {
+                return;
+            }
+            
+            searchBtn.disabled = true;
+            searchBtn.textContent = 'Searching...';
+            
+            try {
+                const params = new URLSearchParams();
+                if (query) params.set('q', query);
+                if (directory) params.set('directory', directory);
+                
+                // If no query but directory selected, use wildcard
+                if (!query && directory) {
+                    params.set('q', '*');
+                }
+                
+                const response = await fetch('/api/search?' + params.toString());
+                const results = await response.json();
+                
+                displaySearchResults(results, query);
+            } catch (e) {
+                console.error('Search failed:', e);
+                sessionList.innerHTML = '<div class="empty-state">Search failed. Please try again.</div>';
+            } finally {
+                searchBtn.disabled = false;
+                searchBtn.textContent = 'Search';
+            }
+        }
+        
+        function displaySearchResults(results, query) {
+            clearBtn.classList.remove('hidden');
+            searchResultsHeader.classList.remove('hidden');
+            searchResultsCount.textContent = `Found ${results.length} session${results.length !== 1 ? 's' : ''} matching "${query}"`;
+            
+            if (results.length === 0) {
+                sessionList.innerHTML = '<div class="empty-state">No sessions found matching your search.</div>';
+                return;
+            }
+            
+            sessionList.innerHTML = results.map(result => {
+                const title = result.title || 'Untitled';
+                const directory = result.directory || '';
+                const dirShort = directory.length > 40 ? '...' + directory.slice(-37) : directory;
+                const timeFormatted = result.time_updated 
+                    ? new Date(result.time_updated).toLocaleString()
+                    : 'Unknown';
+                
+                // Format matches with highlighting
+                const matchesHtml = result.matches.map(match => {
+                    // Replace <<MATCH>> and <<END>> markers with <mark> tags
+                    const snippet = escapeHtml(match.snippet)
+                        .replace(/&lt;&lt;MATCH&gt;&gt;/g, '<mark>')
+                        .replace(/&lt;&lt;END&gt;&gt;/g, '</mark>');
+                    return `
+                        <div class="match-snippet">
+                            <div class="match-role">${match.role}</div>
+                            <div>${snippet}</div>
+                        </div>
+                    `;
+                }).join('');
+                
+                const moreMatches = result.total_matches > result.matches.length 
+                    ? `<div style="font-size: 12px; color: var(--text-tertiary); margin-top: 8px;">
+                         +${result.total_matches - result.matches.length} more matches
+                       </div>`
+                    : '';
+                
+                // Build URL with search query parameter
+                const sessionUrl = `/session/${result.session_id}?q=${encodeURIComponent(query)}`;
+                
+                return `
+                    <a href="${sessionUrl}" class="session-item">
+                        <div class="session-header">
+                            <div class="session-title">${escapeHtml(title)}</div>
+                            <div class="session-time">${timeFormatted}</div>
+                        </div>
+                        <div class="session-meta">
+                            <div class="meta-item">
+                                <span>📂</span>
+                                <span class="directory" title="${escapeHtml(directory)}">${escapeHtml(dirShort)}</span>
+                            </div>
+                        </div>
+                        ${matchesHtml}
+                        ${moreMatches}
+                    </a>
+                `;
+            }).join('');
+        }
+        
+        function clearSearch() {
+            searchInput.value = '';
+            directorySelect.value = '';
+            sessionList.innerHTML = originalContent;
+            clearBtn.classList.add('hidden');
+            searchResultsHeader.classList.add('hidden');
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // Search on Enter key
+        searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                performSearch();
+            }
+        });
+        
+        // Load directories on init
+        loadDirectories();
     </script>
 </body>
 </html>

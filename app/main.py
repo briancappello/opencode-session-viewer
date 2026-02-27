@@ -1,18 +1,30 @@
+from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
 from app.services import (
     format_timestamp,
     get_storage_path,
+    list_directories,
     list_sessions,
     load_session_export,
+    search_sessions,
 )
+from app.sync import sync_search_index
 
 
-app = FastAPI(title="OpenCode Session Viewer")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan: sync search index on startup."""
+    sync_search_index()
+    yield
+
+
+app = FastAPI(title="OpenCode Session Viewer", lifespan=lifespan)
 
 BASE_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
@@ -52,6 +64,26 @@ async def dashboard(request: Request, all: bool = False):
             "show_all": all,
         },
     )
+
+
+@app.get("/api/search")
+async def api_search(
+    q: str = Query(..., description="Search query"),
+    directory: Optional[str] = Query(None, description="Filter by directory"),
+    limit: int = Query(50, ge=1, le=200, description="Max results"),
+):
+    """Search sessions using full-text search."""
+    results = search_sessions(query=q, directory=directory, limit=limit)
+    return JSONResponse(
+        content=[r.model_dump() for r in results],
+    )
+
+
+@app.get("/api/directories")
+async def api_directories():
+    """Get list of unique directories for filtering."""
+    directories = list_directories()
+    return JSONResponse(content=directories)
 
 
 @app.get("/session/{session_id}", response_class=HTMLResponse)
