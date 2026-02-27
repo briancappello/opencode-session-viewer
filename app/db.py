@@ -77,7 +77,12 @@ class MessageModel(Base):
 
     @property
     def summary(self) -> Optional[dict]:
-        return self._json_data.get("summary")
+        summary_value = self._json_data.get("summary")
+        # Handle legacy boolean summary values (e.g., summary: true)
+        # Convert to None so Pydantic validation succeeds
+        if isinstance(summary_value, bool):
+            return None
+        return summary_value
 
 
 class PartModel(Base):
