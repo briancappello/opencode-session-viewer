@@ -24,6 +24,7 @@ class GenericPart(BaseModel):
     state: Optional[Dict[str, Any]] = None
     tokens: Optional[TokenUsage] = None
     time_created: Optional[int] = None
+    synthetic: Optional[bool] = None  # True for auto-generated parts (tool call echoes)
 
     model_config = ConfigDict(from_attributes=True, extra="allow")
 

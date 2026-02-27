@@ -920,9 +920,7 @@
         let currentMessageIndex = 0;
         let urlSearchQuery = ''; // Search query from URL (for highlighting)
         
-        // Configure marked to work with highlight.js
-        // We don't use marked's highlight option because we apply highlighting
-        // after DOM insertion for better performance and flexibility
+        // Configure marked for GitHub Flavored Markdown
         marked.setOptions({
             breaks: false,
             gfm: true
@@ -1120,9 +1118,9 @@
             const el = document.getElementById(id);
             if (el) {
                 el.classList.toggle('expanded');
-                // Apply syntax highlighting to newly visible code blocks
+                // Apply syntax highlighting to code blocks with explicit language classes
                 if (el.classList.contains('expanded')) {
-                    el.querySelectorAll('pre code:not(.hljs)').forEach((block) => {
+                    el.querySelectorAll('pre code[class*="language-"]:not(.hljs)').forEach((block) => {
                         hljs.highlightElement(block);
                     });
                 }
@@ -1334,9 +1332,10 @@
                     label = `Subtask: ${subagent}`;
                     
                     // Format subtask content
+                    const resultText = typeof result === 'string' ? result : JSON.stringify(result, null, 2);
                     content = `
                         <div class="subtask-prompt"><strong>Task:</strong> ${esc(prompt)}</div>
-                        ${result ? `<div class="subtask-result">${DOMPurify.sanitize(marked.parse(typeof result === 'string' ? result : JSON.stringify(result, null, 2)))}</div>` : ''}
+                        ${result ? `<div class="subtask-result">${DOMPurify.sanitize(marked.parse(resultText))}</div>` : ''}
                     `;
                 }
 
@@ -1349,22 +1348,13 @@
             }
 
             if (part.type === 'text' && part.text) {
+                // Skip synthetic text parts (these are tool call echoes that shouldn't be rendered as text)
+                if (part.synthetic) {
+                    return '';
+                }
                 // Parse markdown and sanitize HTML
-                const rawHtml = marked.parse(part.text);
-                const cleanHtml = DOMPurify.sanitize(rawHtml);
+                const cleanHtml = DOMPurify.sanitize(marked.parse(part.text));
                 return `<div class="part"><div class="part-text">${cleanHtml}</div></div>`;
-            }
-            
-            if (part.type === 'reasoning' && part.text) {
-                // Parse markdown and sanitize HTML
-                const rawHtml = marked.parse(part.text);
-                const cleanHtml = DOMPurify.sanitize(rawHtml);
-                return `
-                    <div class="part part-reasoning">
-                        <div class="reasoning-label"><span>🧠</span> Thinking Process</div>
-                        <div class="part-text">${cleanHtml}</div>
-                    </div>
-                `;
             }
             
             if (part.type === 'tool') {
@@ -1374,9 +1364,17 @@
 
                 const st = part.state || {};
                 const id = 'tool-' + (toolCounter++);
-                // Determine if output looks like JSON
-                const outputIsJson = st.output && typeof st.output !== 'string';
                 const outputText = st.output ? (typeof st.output === 'string' ? st.output : JSON.stringify(st.output, null, 2)) : '';
+                
+                // Determine if this tool should have syntax highlighting
+                // File operations (read, write, edit, glob, grep) should NOT have highlighting
+                const noHighlightTools = ['read', 'write', 'edit', 'glob', 'grep', 'mcp_read', 'mcp_write', 'mcp_edit', 'mcp_glob', 'mcp_grep'];
+                const toolName = (part.tool || '').toLowerCase();
+                const skipHighlight = noHighlightTools.some(t => toolName.includes(t));
+                
+                // Only apply JSON highlighting to input if it's not a file operation tool
+                const inputLangClass = skipHighlight ? '' : 'language-json';
+                
                 return `
                     <div class="part part-tool">
                         <div class="tool-header" onclick="toggleTool('${id}')">
@@ -1390,13 +1388,13 @@
                             ${st.input ? `
                                 <div class="tool-section">
                                     <div class="tool-section-label">Input</div>
-                                    <pre class="tool-code"><code class="language-json">${esc(JSON.stringify(st.input, null, 2))}</code></pre>
+                                    <pre class="tool-code"><code class="${inputLangClass}">${esc(JSON.stringify(st.input, null, 2))}</code></pre>
                                 </div>
                             ` : ''}
                             ${st.output ? `
                                 <div class="tool-section">
                                     <div class="tool-section-label">Output</div>
-                                    <pre class="tool-code"><code class="${outputIsJson ? 'language-json' : ''}">${esc(outputText)}</code></pre>
+                                    <pre class="tool-code"><code>${esc(outputText)}</code></pre>
                                 </div>
                             ` : ''}
                         </div>
@@ -1463,8 +1461,18 @@
         // Apply syntax highlighting to code blocks
         function applySyntaxHighlighting() {
             // Find all code blocks inside pre elements that haven't been highlighted yet
+            // Only highlight blocks that have a language class specified (e.g., language-javascript)
             document.querySelectorAll('pre code:not(.hljs)').forEach((block) => {
-                hljs.highlightElement(block);
+                // Check if the block has a language class
+                const langClass = Array.from(block.classList).find(cls => cls.startsWith('language-'));
+                
+                if (langClass) {
+                    const lang = langClass.replace('language-', '');
+                    // Only highlight if we have a valid language (not empty)
+                    if (lang && hljs.getLanguage(lang)) {
+                        hljs.highlightElement(block);
+                    }
+                }
             });
         }
         

@@ -126,6 +126,10 @@ class PartModel(Base):
     def tokens(self) -> Optional[dict]:
         return self._json_data.get("tokens")
 
+    @property
+    def synthetic(self) -> Optional[bool]:
+        return self._json_data.get("synthetic")
+
 
 def get_db_session(db_path: Path) -> Session:
     """Create a new SQLAlchemy session for the given database path."""
