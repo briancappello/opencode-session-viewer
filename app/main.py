@@ -73,9 +73,10 @@ async def api_search(
     q: str = Query(..., description="Search query"),
     directory: Optional[str] = Query(None, description="Filter by directory"),
     limit: int = Query(50, ge=1, le=200, description="Max results"),
+    regex: bool = Query(False, description="Use regex search instead of plaintext"),
 ):
-    """Search sessions using full-text search."""
-    results = search_sessions(query=q, directory=directory, limit=limit)
+    """Search sessions using full-text search or regex."""
+    results = search_sessions(query=q, directory=directory, limit=limit, regex=regex)
     return JSONResponse(
         content=[r.model_dump() for r in results],
     )

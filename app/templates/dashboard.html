@@ -199,7 +199,7 @@
         
         /* Search styles */
         .search-container {
-            margin-bottom: 20px;
+            margin-bottom: 8px;
             display: flex;
             gap: 12px;
             flex-wrap: wrap;
@@ -207,7 +207,7 @@
         
         .search-input {
             flex: 1;
-            min-width: 200px;
+            min-width: 300px;
             padding: 10px 14px;
             border: 1px solid var(--border-color);
             border-radius: 6px;
@@ -232,7 +232,8 @@
             background: var(--bg-secondary);
             color: var(--text-primary);
             font-size: 14px;
-            min-width: 200px;
+            width: 250px;
+            flex-shrink: 0;
         }
         
         .directory-select:focus {
@@ -315,6 +316,29 @@
         .hidden {
             display: none !important;
         }
+        
+        .search-options {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+        
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--text-secondary);
+            font-size: 13px;
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        .checkbox-label input[type="checkbox"] {
+            width: 14px;
+            height: 14px;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -337,6 +361,12 @@
             </select>
             <button onclick="performSearch()" class="search-btn" id="searchBtn">Search</button>
             <button onclick="clearSearch()" class="clear-btn hidden" id="clearBtn">Clear</button>
+        </div>
+        <div class="search-options">
+            <label class="checkbox-label">
+                <input type="checkbox" id="regexCheckbox" />
+                <span>Use regular expression</span>
+            </label>
         </div>
         
         <div id="searchResultsHeader" class="search-results-header hidden">
@@ -394,6 +424,7 @@
         // Search functionality
         const searchInput = document.getElementById('searchInput');
         const directorySelect = document.getElementById('directorySelect');
+        const regexCheckbox = document.getElementById('regexCheckbox');
         const searchBtn = document.getElementById('searchBtn');
         const clearBtn = document.getElementById('clearBtn');
         const sessionList = document.getElementById('sessionList');
@@ -402,6 +433,13 @@
         
         // Store original content
         const originalContent = sessionList.innerHTML;
+        
+        // Update placeholder when regex checkbox changes
+        regexCheckbox.addEventListener('change', () => {
+            searchInput.placeholder = regexCheckbox.checked 
+                ? 'Search with regex pattern...' 
+                : 'Search session contents...';
+        });
         
         // Load directories on page load
         async function loadDirectories() {
@@ -425,6 +463,7 @@
         async function performSearch() {
             const query = searchInput.value.trim();
             const directory = directorySelect.value;
+            const useRegex = regexCheckbox.checked;
             
             if (!query && !directory) {
                 return;
@@ -437,16 +476,17 @@
                 const params = new URLSearchParams();
                 if (query) params.set('q', query);
                 if (directory) params.set('directory', directory);
+                if (useRegex) params.set('regex', 'true');
                 
-                // If no query but directory selected, use wildcard
-                if (!query && directory) {
+                // If no query but directory selected, use wildcard (only for non-regex)
+                if (!query && directory && !useRegex) {
                     params.set('q', '*');
                 }
                 
                 const response = await fetch('/api/search?' + params.toString());
                 const results = await response.json();
                 
-                displaySearchResults(results, query);
+                displaySearchResults(results, query, useRegex);
             } catch (e) {
                 console.error('Search failed:', e);
                 sessionList.innerHTML = '<div class="empty-state">Search failed. Please try again.</div>';
@@ -456,13 +496,17 @@
             }
         }
         
-        function displaySearchResults(results, query) {
+        function displaySearchResults(results, query, useRegex = false) {
             clearBtn.classList.remove('hidden');
             searchResultsHeader.classList.remove('hidden');
-            searchResultsCount.textContent = `Found ${results.length} session${results.length !== 1 ? 's' : ''} matching "${query}"`;
+            const searchType = useRegex ? 'regex' : 'plaintext';
+            searchResultsCount.textContent = `Found ${results.length} session${results.length !== 1 ? 's' : ''} matching "${query}" (${searchType})`;
             
             if (results.length === 0) {
-                sessionList.innerHTML = '<div class="empty-state">No sessions found matching your search.</div>';
+                const hint = useRegex 
+                    ? 'Check your regex pattern syntax.' 
+                    : 'Try different search terms.';
+                sessionList.innerHTML = `<div class="empty-state">No sessions found matching your search. ${hint}</div>`;
                 return;
             }
             
@@ -494,8 +538,9 @@
                        </div>`
                     : '';
                 
-                // Build URL with search query parameter
-                const sessionUrl = `/session/${result.session_id}?q=${encodeURIComponent(query)}`;
+                // Build URL with search query parameter (and regex flag if enabled)
+                let sessionUrl = `/session/${result.session_id}?q=${encodeURIComponent(query)}`;
+                if (useRegex) sessionUrl += '&regex=true';
                 
                 return `
                     <div class="session-item" data-session-id="${result.session_id}">
@@ -522,6 +567,8 @@
         function clearSearch() {
             searchInput.value = '';
             directorySelect.value = '';
+            regexCheckbox.checked = false;
+            searchInput.placeholder = 'Search session contents...';
             sessionList.innerHTML = originalContent;
             clearBtn.classList.add('hidden');
             searchResultsHeader.classList.add('hidden');

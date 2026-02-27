@@ -6,6 +6,8 @@ full-text search of session contents. The mirror database is synced from
 the OpenCode source database on application startup.
 """
 
+import re
+
 from pathlib import Path
 from typing import Optional
 
@@ -55,16 +57,29 @@ class SyncMetadata(SearchBase):
     value: Mapped[str] = mapped_column(String)
 
 
+def _sqlite_regexp(pattern: str, string: str) -> bool:
+    """SQLite REGEXP function implementation using Python's re module."""
+    if string is None:
+        return False
+    try:
+        return re.search(pattern, string, re.IGNORECASE) is not None
+    except re.error:
+        # Invalid regex pattern
+        return False
+
+
 def get_search_engine():
     """Create engine for the search index database."""
     engine = create_engine(f"sqlite:///{SEARCH_DB_PATH}")
 
-    # Enable FTS5 support
+    # Enable FTS5 support and register REGEXP function
     @event.listens_for(engine, "connect")
     def set_sqlite_pragma(dbapi_connection, connection_record):
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA journal_mode=WAL")
         cursor.close()
+        # Register REGEXP function for regex search support
+        dbapi_connection.create_function("REGEXP", 2, _sqlite_regexp)
 
     return engine
 

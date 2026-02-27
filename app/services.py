@@ -1,4 +1,5 @@
 import json
+import re
 import sys
 
 from datetime import datetime
@@ -295,19 +296,61 @@ def _transform_legacy_message(data: dict) -> dict:
     return data
 
 
+def _escape_fts5_query(query: str) -> str:
+    """Escape special FTS5 characters for literal/plaintext search.
+
+    FTS5 special characters that need escaping: " * ( ) : ^
+    We wrap the query in double quotes to search for the exact phrase.
+    Any internal double quotes are escaped by doubling them.
+    """
+    # Escape internal double quotes by doubling them
+    escaped = query.replace('"', '""')
+    # Wrap in double quotes for phrase search (literal matching)
+    return f'"{escaped}"'
+
+
+def _generate_snippet(
+    content: str, pattern: re.Pattern, snippet_length: int = 100
+) -> str:
+    """Generate a snippet with match markers for regex search results.
+
+    Returns a snippet of text around the first match with <<MATCH>> and <<END>>
+    markers for highlighting.
+    """
+    match = pattern.search(content)
+    if not match:
+        return content[:snippet_length] + ("..." if len(content) > snippet_length else "")
+
+    match_start, match_end = match.span()
+    matched_text = match.group()
+
+    # Calculate context window around the match
+    context_chars = (snippet_length - len(matched_text)) // 2
+    start = max(0, match_start - context_chars)
+    end = min(len(content), match_end + context_chars)
+
+    # Build snippet with markers
+    prefix = ("..." if start > 0 else "") + content[start:match_start]
+    suffix = content[match_end:end] + ("..." if end < len(content) else "")
+
+    return f"{prefix}<<MATCH>>{matched_text}<<END>>{suffix}"
+
+
 def search_sessions(
     query: str,
     directory: Optional[str] = None,
     limit: int = 50,
     snippet_length: int = 100,
+    regex: bool = False,
 ) -> List[SearchResult]:
-    """Search sessions using FTS5 full-text search.
+    """Search sessions using FTS5 full-text search or regex.
 
     Args:
-        query: The search query (supports FTS5 syntax)
+        query: The search query
         directory: Optional directory filter (partial match)
         limit: Maximum number of sessions to return
         snippet_length: Approximate length of text snippets
+        regex: If True, use regex matching instead of FTS5
 
     Returns:
         List of SearchResult objects with matching sessions and snippets
@@ -315,8 +358,6 @@ def search_sessions(
     if not SEARCH_DB_PATH.exists():
         return []
 
-    # Escape special FTS5 characters in query for safety
-    # Allow basic operators like AND, OR, NOT, quotes
     safe_query = query.strip()
     if not safe_query:
         return []
@@ -324,74 +365,142 @@ def search_sessions(
     results_map: dict[str, SearchResult] = {}
 
     with get_search_session() as db:
-        # Build the FTS5 query with optional directory filter
-        # We join part_fts with part_index and session_index
-        sql = """
-            SELECT
-                p.id as part_id,
-                p.session_id,
-                p.message_id,
-                p.role,
-                p.content,
-                p.time_created,
-                s.title,
-                s.directory,
-                s.time_updated,
-                snippet(part_fts, 0, '<<MATCH>>', '<<END>>', '...', :snippet_tokens) as snippet
-            FROM part_fts f
-            JOIN part_index p ON f.rowid = p.rowid
-            JOIN session_index s ON p.session_id = s.id
-            WHERE part_fts MATCH :query
-              AND (s.archived = 0 OR s.archived IS NULL)
-        """
+        if regex:
+            # Regex search: query part_index directly using REGEXP
+            try:
+                pattern = re.compile(safe_query, re.IGNORECASE)
+            except re.error as e:
+                print(f"Invalid regex pattern: {e}", file=sys.stderr)
+                return []
 
-        params = {
-            "query": safe_query,
-            "snippet_tokens": snippet_length // 5,  # Approximate tokens
-        }
+            sql = """
+                SELECT
+                    p.id as part_id,
+                    p.session_id,
+                    p.message_id,
+                    p.role,
+                    p.content,
+                    p.time_created,
+                    s.title,
+                    s.directory,
+                    s.time_updated
+                FROM part_index p
+                JOIN session_index s ON p.session_id = s.id
+                WHERE p.content REGEXP :query
+                  AND (s.archived = 0 OR s.archived IS NULL)
+            """
 
-        if directory:
-            sql += " AND s.directory LIKE :directory"
-            params["directory"] = f"%{directory}%"
+            params: dict = {"query": safe_query}
 
-        sql += " ORDER BY s.time_updated DESC LIMIT :limit"
-        params["limit"] = limit * 10  # Get more matches, we'll group by session
+            if directory:
+                sql += " AND s.directory LIKE :directory"
+                params["directory"] = f"%{directory}%"
 
-        try:
-            rows = db.execute(text(sql), params).fetchall()
-        except Exception as e:
-            # FTS5 query syntax error - return empty results
-            print(f"Search query error: {e}", file=sys.stderr)
-            return []
+            sql += " ORDER BY s.time_updated DESC LIMIT :limit"
+            params["limit"] = limit * 10
 
-        # Group matches by session
-        for row in rows:
-            session_id = row.session_id
+            try:
+                rows = db.execute(text(sql), params).fetchall()
+            except Exception as e:
+                print(f"Regex search error: {e}", file=sys.stderr)
+                return []
 
-            if session_id not in results_map:
-                results_map[session_id] = SearchResult(
-                    session_id=session_id,
-                    title=row.title,
-                    directory=row.directory,
-                    time_updated=row.time_updated,
-                    matches=[],
-                    total_matches=0,
-                )
+            # Group matches by session with manually generated snippets
+            for row in rows:
+                session_id = row.session_id
 
-            result = results_map[session_id]
-            result.total_matches += 1
-
-            # Only keep first few matches per session for display
-            if len(result.matches) < 3:
-                result.matches.append(
-                    SearchMatch(
-                        part_id=row.part_id,
-                        message_id=row.message_id,
-                        role=row.role,
-                        snippet=row.snippet or row.content[:snippet_length],
-                        time_created=row.time_created,
+                if session_id not in results_map:
+                    results_map[session_id] = SearchResult(
+                        session_id=session_id,
+                        title=row.title,
+                        directory=row.directory,
+                        time_updated=row.time_updated,
+                        matches=[],
+                        total_matches=0,
                     )
-                )
+
+                result = results_map[session_id]
+                result.total_matches += 1
+
+                if len(result.matches) < 3:
+                    snippet = _generate_snippet(row.content, pattern, snippet_length)
+                    result.matches.append(
+                        SearchMatch(
+                            part_id=row.part_id,
+                            message_id=row.message_id,
+                            role=row.role,
+                            snippet=snippet,
+                            time_created=row.time_created,
+                        )
+                    )
+        else:
+            # FTS5 search: escape query for literal/plaintext matching
+            fts_query = _escape_fts5_query(safe_query)
+
+            sql = """
+                SELECT
+                    p.id as part_id,
+                    p.session_id,
+                    p.message_id,
+                    p.role,
+                    p.content,
+                    p.time_created,
+                    s.title,
+                    s.directory,
+                    s.time_updated,
+                    snippet(part_fts, 0, '<<MATCH>>', '<<END>>', '...', :snippet_tokens) as snippet
+                FROM part_fts f
+                JOIN part_index p ON f.rowid = p.rowid
+                JOIN session_index s ON p.session_id = s.id
+                WHERE part_fts MATCH :query
+                  AND (s.archived = 0 OR s.archived IS NULL)
+            """
+
+            params = {
+                "query": fts_query,
+                "snippet_tokens": snippet_length // 5,
+            }
+
+            if directory:
+                sql += " AND s.directory LIKE :directory"
+                params["directory"] = f"%{directory}%"
+
+            sql += " ORDER BY s.time_updated DESC LIMIT :limit"
+            params["limit"] = limit * 10
+
+            try:
+                rows = db.execute(text(sql), params).fetchall()
+            except Exception as e:
+                print(f"Search query error: {e}", file=sys.stderr)
+                return []
+
+            # Group matches by session
+            for row in rows:
+                session_id = row.session_id
+
+                if session_id not in results_map:
+                    results_map[session_id] = SearchResult(
+                        session_id=session_id,
+                        title=row.title,
+                        directory=row.directory,
+                        time_updated=row.time_updated,
+                        matches=[],
+                        total_matches=0,
+                    )
+
+                result = results_map[session_id]
+                result.total_matches += 1
+
+                if len(result.matches) < 3:
+                    result.matches.append(
+                        SearchMatch(
+                            part_id=row.part_id,
+                            message_id=row.message_id,
+                            role=row.role,
+                            snippet=row.snippet or row.content[:snippet_length],
+                            time_created=row.time_created,
+                        )
+                    )
 
         # Convert to list and limit
         results = list(results_map.values())[:limit]
