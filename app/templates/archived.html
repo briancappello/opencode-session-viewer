@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Archived Sessions | OpenCode</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        :root {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f7f6f3;
+            --bg-hover: #efefef;
+            --bg-selected: #e8e7e4;
+            --text-primary: #37352f;
+            --text-secondary: #787774;
+            --text-tertiary: #9b9a97;
+            --accent-blue: #2383e2;
+            --accent-orange: #d9730d;
+            --border-color: #e9e9e7;
+        }
+        
+        .dark {
+            --bg-primary: #191919;
+            --bg-secondary: #202020;
+            --bg-hover: #2f2f2f;
+            --bg-selected: #363636;
+            --text-primary: #e6e6e6;
+            --text-secondary: #9b9b9b;
+            --text-tertiary: #6b6b6b;
+            --border-color: #2f2f2f;
+        }
+        
+        body {
+            font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            font-size: 14px;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .title {
+            font-size: 20px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .title .back-link {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 16px;
+        }
+        
+        .title .back-link:hover {
+            color: var(--accent-blue);
+        }
+        
+        .archived-badge {
+            font-size: 12px;
+            padding: 2px 8px;
+            background: rgba(217, 115, 13, 0.1);
+            color: var(--accent-orange);
+            border-radius: 4px;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .theme-toggle {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 18px;
+            padding: 4px;
+        }
+        
+        .session-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .session-item {
+            display: flex;
+            text-decoration: none;
+            color: inherit;
+            background: var(--bg-secondary);
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            transition: all 0.2s ease;
+            align-items: center;
+            gap: 16px;
+        }
+        
+        .session-item:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            border-color: var(--accent-blue);
+        }
+        
+        .session-content {
+            flex: 1;
+        }
+        
+        .session-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+        
+        .session-title {
+            font-weight: 600;
+            font-size: 15px;
+            color: var(--text-primary);
+        }
+        
+        .session-time {
+            font-size: 12px;
+            color: var(--text-tertiary);
+            white-space: nowrap;
+            margin-left: 12px;
+        }
+        
+        .session-meta {
+            display: flex;
+            gap: 16px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+        
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .directory {
+            font-family: monospace;
+            background: rgba(0,0,0,0.05);
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        
+        .dark .directory {
+            background: rgba(255,255,255,0.05);
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-secondary);
+        }
+        
+        .unarchive-btn {
+            background: none;
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            white-space: nowrap;
+        }
+        
+        .unarchive-btn:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+            border-color: var(--accent-blue);
+        }
+        
+        .unarchive-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="title">
+                <a href="/" class="back-link">← Back</a>
+                <span>Archived Sessions</span>
+                <span class="archived-badge">{{ sessions|length }} archived</span>
+            </div>
+            <div class="controls">
+                <button class="theme-toggle" onclick="toggleTheme()" title="Toggle dark mode">🌓</button>
+            </div>
+        </div>
+        
+        <div class="session-list" id="sessionList">
+            {% for session in sessions %}
+            <div class="session-item" data-session-id="{{ session.id }}">
+                <a href="/session/{{ session.id }}" class="session-content">
+                    <div class="session-header">
+                        <div class="session-title">{{ session.title or "Untitled" }}</div>
+                        <div class="session-time">{{ session.updated_formatted }}</div>
+                    </div>
+                    <div class="session-meta">
+                        <div class="meta-item">
+                            <span>📂</span>
+                            <span class="directory" title="{{ session.directory }}">{{ session.directory_short }}</span>
+                        </div>
+                        {% if session.model %}
+                        <div class="meta-item">
+                            <span>🤖</span>
+                            <span>{{ session.model }}</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                </a>
+                <button class="unarchive-btn" onclick="unarchiveSession('{{ session.id }}', this)">Unarchive</button>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                No archived sessions.
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <script>
+        // Theme
+        function toggleTheme() {
+            document.body.classList.toggle('dark');
+            localStorage.setItem('theme', document.body.classList.contains('dark') ? 'dark' : 'light');
+        }
+        
+        // Init theme
+        if (localStorage.getItem('theme') === 'dark') {
+            document.body.classList.add('dark');
+        } else if (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.body.classList.add('dark');
+        }
+        
+        // Unarchive functionality
+        async function unarchiveSession(sessionId, btn) {
+            btn.disabled = true;
+            btn.textContent = 'Unarchiving...';
+            
+            try {
+                const response = await fetch(`/api/session/${sessionId}/unarchive`, {
+                    method: 'POST'
+                });
+                
+                if (response.ok) {
+                    // Remove the session from the list with animation
+                    const item = btn.closest('.session-item');
+                    item.style.opacity = '0';
+                    item.style.transform = 'translateX(20px)';
+                    item.style.transition = 'all 0.3s ease';
+                    
+                    setTimeout(() => {
+                        item.remove();
+                        
+                        // Update the count badge
+                        const badge = document.querySelector('.archived-badge');
+                        const remaining = document.querySelectorAll('.session-item').length;
+                        badge.textContent = `${remaining} archived`;
+                        
+                        // Show empty state if no sessions left
+                        if (remaining === 0) {
+                            document.getElementById('sessionList').innerHTML = 
+                                '<div class="empty-state">No archived sessions.</div>';
+                        }
+                    }, 300);
+                } else {
+                    btn.disabled = false;
+                    btn.textContent = 'Unarchive';
+                    console.error('Failed to unarchive session');
+                }
+            } catch (e) {
+                btn.disabled = false;
+                btn.textContent = 'Unarchive';
+                console.error('Failed to unarchive:', e);
+            }
+        }
+    </script>
+</body>
+</html>

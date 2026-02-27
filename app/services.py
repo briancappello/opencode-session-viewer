@@ -15,7 +15,11 @@ from app.models import (
     SessionExport,
     SessionSummary,
 )
-from app.search_db import SEARCH_DB_PATH, get_search_session
+from app.search_db import (
+    SEARCH_DB_PATH,
+    get_archived_session_ids,
+    get_search_session,
+)
 
 
 def get_storage_path() -> Path:
@@ -113,17 +117,21 @@ def list_sessions_from_files(storage_path: Path) -> List[SessionSummary]:
 
 
 def list_sessions(storage_path: Path, show_all: bool = False) -> List[SessionSummary]:
-    """List all available sessions (DB and legacy files)."""
+    """List all available sessions (DB and legacy files), excluding archived."""
     sessions_map = {}  # Map ID to session to avoid duplicates
+
+    # Get archived session IDs to exclude
+    archived_ids = get_archived_session_ids()
 
     # Try DB first
     db_path = storage_path.parent / "opencode.db"
     for s in list_sessions_from_db(db_path):
-        sessions_map[s.id] = s
+        if s.id not in archived_ids:
+            sessions_map[s.id] = s
 
     # Try legacy files
     for s in list_sessions_from_files(storage_path):
-        if s.id not in sessions_map:
+        if s.id not in sessions_map and s.id not in archived_ids:
             sessions_map[s.id] = s
 
     # Sort by last updated time (most recent first)
@@ -137,6 +145,35 @@ def list_sessions(storage_path: Path, show_all: bool = False) -> List[SessionSum
             for s in sorted_sessions
             if s.parent_id is None and "subagent" not in (s.title or "").lower()
         ]
+
+    return sorted_sessions
+
+
+def list_archived_sessions(storage_path: Path) -> List[SessionSummary]:
+    """List archived sessions only."""
+    sessions_map = {}  # Map ID to session to avoid duplicates
+
+    # Get archived session IDs
+    archived_ids = get_archived_session_ids()
+
+    if not archived_ids:
+        return []
+
+    # Try DB first
+    db_path = storage_path.parent / "opencode.db"
+    for s in list_sessions_from_db(db_path):
+        if s.id in archived_ids:
+            sessions_map[s.id] = s
+
+    # Try legacy files
+    for s in list_sessions_from_files(storage_path):
+        if s.id not in sessions_map and s.id in archived_ids:
+            sessions_map[s.id] = s
+
+    # Sort by last updated time (most recent first)
+    sorted_sessions = sorted(
+        sessions_map.values(), key=lambda s: s.time_updated or 0, reverse=True
+    )
 
     return sorted_sessions
 
@@ -305,6 +342,7 @@ def search_sessions(
             JOIN part_index p ON f.rowid = p.rowid
             JOIN session_index s ON p.session_id = s.id
             WHERE part_fts MATCH :query
+              AND (s.archived = 0 OR s.archived IS NULL)
         """
 
         params = {
@@ -362,7 +400,7 @@ def search_sessions(
 
 
 def list_directories() -> List[str]:
-    """Get a list of unique directories from indexed sessions."""
+    """Get a list of unique directories from indexed sessions (excluding archived)."""
     if not SEARCH_DB_PATH.exists():
         return []
 
@@ -371,6 +409,7 @@ def list_directories() -> List[str]:
             SELECT DISTINCT directory
             FROM session_index
             WHERE directory IS NOT NULL AND directory != ''
+              AND (archived = 0 OR archived IS NULL)
             ORDER BY directory
         """
         rows = db.execute(text(sql)).fetchall()

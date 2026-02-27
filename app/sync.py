@@ -18,6 +18,7 @@ from app.search_db import (
     PartIndex,
     SessionIndex,
     SyncMetadata,
+    get_archived_session_ids,
     get_search_session,
     init_search_db,
 )
@@ -62,21 +63,35 @@ def extract_text_from_part(part: PartModel) -> Optional[str]:
     return part.text
 
 
-def sync_session(source_db, search_db, session: SessionModel):
-    """Sync a single session and its parts to the search index."""
-    # Upsert session index
+def sync_session(
+    source_db, search_db, session: SessionModel, archived_ids: set[str] | None = None
+):
+    """Sync a single session and its parts to the search index.
+
+    Args:
+        source_db: Source database session
+        search_db: Search index database session
+        session: Session model to sync
+        archived_ids: Set of session IDs that should be marked as archived
+                     (used during full rebuild to preserve archived status)
+    """
+    # Upsert session index, preserving archived status
     existing_session = search_db.get(SessionIndex, session.id)
     if existing_session:
+        # Update existing - preserve archived status
         existing_session.directory = session.directory
         existing_session.title = session.title
         existing_session.time_updated = session.time_updated
     else:
+        # New session - check if it should be archived (for rebuild scenario)
+        is_archived = archived_ids is not None and session.id in archived_ids
         search_db.add(
             SessionIndex(
                 id=session.id,
                 directory=session.directory,
                 title=session.title,
                 time_updated=session.time_updated,
+                archived=is_archived,
             )
         )
 
@@ -119,11 +134,14 @@ def sync_session(source_db, search_db, session: SessionModel):
     return parts_indexed
 
 
-def sync_search_index(force_full: bool = False):
+def sync_search_index(
+    force_full: bool = False, preserved_archived_ids: set[str] | None = None
+):
     """Sync the search index from the source database.
 
     Args:
         force_full: If True, perform a full rebuild instead of incremental sync.
+        preserved_archived_ids: Set of session IDs to mark as archived (for rebuild).
     """
     source_path = get_source_db_path()
     if not source_path.exists():
@@ -161,7 +179,9 @@ def sync_search_index(force_full: bool = False):
 
             # Sync each session
             for session in sessions:
-                parts_count = sync_session(source_db, search_db, session)
+                parts_count = sync_session(
+                    source_db, search_db, session, preserved_archived_ids
+                )
                 sessions_synced += 1
                 parts_indexed += parts_count
 
@@ -180,12 +200,19 @@ def sync_search_index(force_full: bool = False):
 
 
 def rebuild_search_index():
-    """Completely rebuild the search index from scratch."""
+    """Completely rebuild the search index from scratch, preserving archived status."""
     from app.search_db import SEARCH_DB_PATH
 
-    # Delete existing database
+    # Save archived session IDs before deleting DB
+    archived_ids = set()
     if SEARCH_DB_PATH.exists():
+        try:
+            archived_ids = get_archived_session_ids()
+        except Exception:
+            pass  # DB might be corrupted, just proceed
+
+        # Delete existing database
         SEARCH_DB_PATH.unlink()
 
-    # Perform full sync
-    sync_search_index(force_full=True)
+    # Perform full sync with preserved archived IDs
+    sync_search_index(force_full=True, preserved_archived_ids=archived_ids)

@@ -106,8 +106,7 @@
         
         .session-item {
             display: block;
-            text-decoration: none;
-            color: inherit;
+            position: relative;
             background: var(--bg-secondary);
             padding: 16px;
             border-radius: 8px;
@@ -119,6 +118,34 @@
             transform: translateY(-1px);
             box-shadow: 0 2px 8px rgba(0,0,0,0.05);
             border-color: var(--accent-blue);
+        }
+        
+        .session-item-link {
+            display: block;
+            text-decoration: none;
+            color: inherit;
+        }
+        
+        .session-item .archive-link {
+            position: absolute;
+            bottom: 12px;
+            right: 12px;
+            font-size: 11px;
+            color: var(--text-tertiary);
+            text-decoration: none;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+        
+        .session-item:hover .archive-link {
+            opacity: 1;
+        }
+        
+        .session-item .archive-link:hover {
+            color: var(--accent-orange);
+            background: rgba(217, 115, 13, 0.1);
         }
         
         .session-header {
@@ -295,6 +322,7 @@
         <div class="header">
             <div class="title">OpenCode Sessions</div>
             <div class="controls">
+                <a href="/archived" class="toggle-btn" title="View archived sessions">Archived</a>
                 <a href="/?all={{ 'false' if show_all else 'true' }}" class="toggle-btn {{ 'active' if show_all }}">
                     {{ 'Hide Subagents' if show_all else 'Show All' }}
                 </a>
@@ -317,27 +345,30 @@
         
         <div class="session-list" id="sessionList">
             {% for session in sessions %}
-            <a href="/session/{{ session.id }}" class="session-item">
-                <div class="session-header">
-                    <div class="session-title">{{ session.title or "Untitled" }}</div>
-                    <div class="session-time">{{ session.updated_formatted }}</div>
-                </div>
-                <div class="session-meta">
-                    <div class="meta-item">
-                        <span>📂</span>
-                        <span class="directory" title="{{ session.directory }}">{{ session.directory_short }}</span>
+            <div class="session-item" data-session-id="{{ session.id }}">
+                <a href="/session/{{ session.id }}" class="session-item-link">
+                    <div class="session-header">
+                        <div class="session-title">{{ session.title or "Untitled" }}</div>
+                        <div class="session-time">{{ session.updated_formatted }}</div>
                     </div>
-                    {% if session.model %}
-                    <div class="meta-item">
-                        <span>🤖</span>
-                        <span>{{ session.model }}</span>
+                    <div class="session-meta">
+                        <div class="meta-item">
+                            <span>📂</span>
+                            <span class="directory" title="{{ session.directory }}">{{ session.directory_short }}</span>
+                        </div>
+                        {% if session.model %}
+                        <div class="meta-item">
+                            <span>🤖</span>
+                            <span>{{ session.model }}</span>
+                        </div>
+                        {% endif %}
+                        <div class="meta-item">
+                            <span style="color: var(--text-tertiary)">ID: {{ session.id }}</span>
+                        </div>
                     </div>
-                    {% endif %}
-                    <div class="meta-item">
-                        <span style="color: var(--text-tertiary)">ID: {{ session.id }}</span>
-                    </div>
-                </div>
-            </a>
+                </a>
+                <a href="#" class="archive-link" onclick="archiveSession('{{ session.id }}', event)">Archive</a>
+            </div>
             {% else %}
             <div class="empty-state">
                 No sessions found.
@@ -467,20 +498,23 @@
                 const sessionUrl = `/session/${result.session_id}?q=${encodeURIComponent(query)}`;
                 
                 return `
-                    <a href="${sessionUrl}" class="session-item">
-                        <div class="session-header">
-                            <div class="session-title">${escapeHtml(title)}</div>
-                            <div class="session-time">${timeFormatted}</div>
-                        </div>
-                        <div class="session-meta">
-                            <div class="meta-item">
-                                <span>📂</span>
-                                <span class="directory" title="${escapeHtml(directory)}">${escapeHtml(dirShort)}</span>
+                    <div class="session-item" data-session-id="${result.session_id}">
+                        <a href="${sessionUrl}" class="session-item-link">
+                            <div class="session-header">
+                                <div class="session-title">${escapeHtml(title)}</div>
+                                <div class="session-time">${timeFormatted}</div>
                             </div>
-                        </div>
-                        ${matchesHtml}
-                        ${moreMatches}
-                    </a>
+                            <div class="session-meta">
+                                <div class="meta-item">
+                                    <span>📂</span>
+                                    <span class="directory" title="${escapeHtml(directory)}">${escapeHtml(dirShort)}</span>
+                                </div>
+                            </div>
+                            ${matchesHtml}
+                            ${moreMatches}
+                        </a>
+                        <a href="#" class="archive-link" onclick="archiveSession('${result.session_id}', event)">Archive</a>
+                    </div>
                 `;
             }).join('');
         }
@@ -505,6 +539,42 @@
                 performSearch();
             }
         });
+        
+        // Archive functionality
+        async function archiveSession(sessionId, event) {
+            event.preventDefault();
+            event.stopPropagation();
+            
+            const link = event.target;
+            link.textContent = 'Archiving...';
+            link.style.pointerEvents = 'none';
+            
+            try {
+                const response = await fetch(`/api/session/${sessionId}/archive`, {
+                    method: 'POST'
+                });
+                
+                if (response.ok) {
+                    // Remove the session from the list with animation
+                    const item = link.closest('.session-item');
+                    item.style.opacity = '0';
+                    item.style.transform = 'translateX(-20px)';
+                    item.style.transition = 'all 0.3s ease';
+                    
+                    setTimeout(() => {
+                        item.remove();
+                    }, 300);
+                } else {
+                    link.textContent = 'Archive';
+                    link.style.pointerEvents = '';
+                    console.error('Failed to archive session');
+                }
+            } catch (e) {
+                link.textContent = 'Archive';
+                link.style.pointerEvents = '';
+                console.error('Failed to archive:', e);
+            }
+        }
         
         // Load directories on init
         loadDirectories();

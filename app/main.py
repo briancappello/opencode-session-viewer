@@ -6,9 +6,11 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
+from app.search_db import is_session_archived, set_session_archived
 from app.services import (
     format_timestamp,
     get_storage_path,
+    list_archived_sessions,
     list_directories,
     list_sessions,
     load_session_export,
@@ -84,6 +86,61 @@ async def api_directories():
     """Get list of unique directories for filtering."""
     directories = list_directories()
     return JSONResponse(content=directories)
+
+
+@app.post("/api/session/{session_id}/archive")
+async def api_archive_session(session_id: str):
+    """Archive a session (soft delete)."""
+    success = set_session_archived(session_id, archived=True)
+    if not success:
+        raise HTTPException(status_code=404, detail="Session not found in index")
+    return JSONResponse(content={"status": "archived", "session_id": session_id})
+
+
+@app.post("/api/session/{session_id}/unarchive")
+async def api_unarchive_session(session_id: str):
+    """Unarchive a session."""
+    success = set_session_archived(session_id, archived=False)
+    if not success:
+        raise HTTPException(status_code=404, detail="Session not found in index")
+    return JSONResponse(content={"status": "unarchived", "session_id": session_id})
+
+
+@app.get("/api/session/{session_id}/archived")
+async def api_session_archived_status(session_id: str):
+    """Check if a session is archived."""
+    archived = is_session_archived(session_id)
+    return JSONResponse(content={"session_id": session_id, "archived": archived})
+
+
+@app.get("/archived", response_class=HTMLResponse)
+async def archived_sessions(request: Request):
+    """View archived sessions."""
+    storage_path = get_storage_path()
+
+    sessions = list_archived_sessions(storage_path)
+
+    display_sessions = []
+    for s in sessions:
+        s_dict = s.model_dump()
+
+        # Shorten directory
+        directory = s.directory or ""
+        dir_short = directory
+        if len(directory) > 40:
+            dir_short = "..." + directory[-37:]
+
+        s_dict["updated_formatted"] = format_timestamp(s.time_updated)
+        s_dict["directory_short"] = dir_short
+        display_sessions.append(s_dict)
+
+    return templates.TemplateResponse(
+        "archived.html",
+        {
+            "request": request,
+            "sessions": display_sessions,
+        },
+    )
 
 
 @app.get("/session/{session_id}", response_class=HTMLResponse)

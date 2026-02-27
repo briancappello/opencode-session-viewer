@@ -783,6 +783,34 @@
         .hidden {
             display: none !important;
         }
+        
+        .archive-btn {
+            background: none;
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            margin-left: 8px;
+        }
+        
+        .archive-btn:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+        }
+        
+        .archive-btn.archived {
+            background: rgba(217, 115, 13, 0.1);
+            border-color: var(--accent-orange);
+            color: var(--accent-orange);
+        }
+        
+        .session-actions {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
     </style>
 </head>
 <body>
@@ -799,7 +827,10 @@
                         <a href="/" class="back-link">←</a>
                         {{ session.summary.title }}
                     </span>
-                    <button class="theme-toggle" onclick="toggleTheme()" title="Toggle dark mode">🌓</button>
+                    <div class="session-actions">
+                        <button class="archive-btn" id="archiveBtn" onclick="toggleArchive()" title="Archive this session">Archive</button>
+                        <button class="theme-toggle" onclick="toggleTheme()" title="Toggle dark mode">🌓</button>
+                    </div>
                 </div>
                 <input type="text" class="search-box" placeholder="Search..." id="searchBox">
             </div>
@@ -1475,12 +1506,75 @@
             renderSparkline();
         });
         
+        // Archive functionality
+        let isArchived = false;
+        
+        async function checkArchiveStatus() {
+            if (!SESSION_DATA) return;
+            try {
+                const response = await fetch(`/api/session/${SESSION_DATA.summary.id}/archived`);
+                const data = await response.json();
+                isArchived = data.archived;
+                updateArchiveButton();
+            } catch (e) {
+                console.error('Failed to check archive status:', e);
+            }
+        }
+        
+        function updateArchiveButton() {
+            const btn = document.getElementById('archiveBtn');
+            if (isArchived) {
+                btn.textContent = 'Archived';
+                btn.classList.add('archived');
+                btn.title = 'Unarchive this session';
+            } else {
+                btn.textContent = 'Archive';
+                btn.classList.remove('archived');
+                btn.title = 'Archive this session';
+            }
+        }
+        
+        async function toggleArchive() {
+            if (!SESSION_DATA) return;
+            
+            const btn = document.getElementById('archiveBtn');
+            btn.disabled = true;
+            
+            try {
+                const action = isArchived ? 'unarchive' : 'archive';
+                const response = await fetch(`/api/session/${SESSION_DATA.summary.id}/${action}`, {
+                    method: 'POST'
+                });
+                
+                if (response.ok) {
+                    isArchived = !isArchived;
+                    updateArchiveButton();
+                    
+                    // If archiving, redirect to dashboard after a short delay
+                    if (isArchived) {
+                        btn.textContent = 'Redirecting...';
+                        setTimeout(() => {
+                            window.location.href = '/';
+                        }, 500);
+                    }
+                } else {
+                    console.error('Failed to toggle archive status');
+                }
+            } catch (e) {
+                console.error('Failed to toggle archive:', e);
+            } finally {
+                btn.disabled = false;
+            }
+        }
+        
         // Load data from script tag
         try {
             const jsonText = document.getElementById('session-data').textContent;
             const INITIAL_DATA = JSON.parse(jsonText);
             if (INITIAL_DATA) {
                 loadData(INITIAL_DATA);
+                // Check archive status after loading
+                checkArchiveStatus();
             }
         } catch (e) {
             console.error("Failed to parse session data:", e);
