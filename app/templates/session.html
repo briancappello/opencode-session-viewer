@@ -507,7 +507,7 @@
             margin-bottom: 6px;
         }
         
-        .tool-code {
+        pre.tool-code {
             background: var(--code-bg);
             border-radius: 4px;
             padding: 10px 12px;
@@ -518,6 +518,14 @@
             overflow-y: auto;
             white-space: pre-wrap;
             word-break: break-word;
+            margin: 0;
+        }
+        
+        pre.tool-code code {
+            background: transparent;
+            padding: 0;
+            font-size: inherit;
+            font-family: inherit;
         }
         
         .part-step {
@@ -912,6 +920,14 @@
         let currentMessageIndex = 0;
         let urlSearchQuery = ''; // Search query from URL (for highlighting)
         
+        // Configure marked to work with highlight.js
+        // We don't use marked's highlight option because we apply highlighting
+        // after DOM insertion for better performance and flexibility
+        marked.setOptions({
+            breaks: false,
+            gfm: true
+        });
+        
         // Get search query from URL parameters
         function getUrlSearchQuery() {
             const params = new URLSearchParams(window.location.search);
@@ -1101,7 +1117,16 @@
         
         // Toggle tool
         function toggleTool(id) {
-            document.getElementById(id)?.classList.toggle('expanded');
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.toggle('expanded');
+                // Apply syntax highlighting to newly visible code blocks
+                if (el.classList.contains('expanded')) {
+                    el.querySelectorAll('pre code:not(.hljs)').forEach((block) => {
+                        hljs.highlightElement(block);
+                    });
+                }
+            }
         }
         
         // Scroll to message
@@ -1349,6 +1374,9 @@
 
                 const st = part.state || {};
                 const id = 'tool-' + (toolCounter++);
+                // Determine if output looks like JSON
+                const outputIsJson = st.output && typeof st.output !== 'string';
+                const outputText = st.output ? (typeof st.output === 'string' ? st.output : JSON.stringify(st.output, null, 2)) : '';
                 return `
                     <div class="part part-tool">
                         <div class="tool-header" onclick="toggleTool('${id}')">
@@ -1362,13 +1390,13 @@
                             ${st.input ? `
                                 <div class="tool-section">
                                     <div class="tool-section-label">Input</div>
-                                    <div class="tool-code">${esc(JSON.stringify(st.input, null, 2))}</div>
+                                    <pre class="tool-code"><code class="language-json">${esc(JSON.stringify(st.input, null, 2))}</code></pre>
                                 </div>
                             ` : ''}
                             ${st.output ? `
                                 <div class="tool-section">
                                     <div class="tool-section-label">Output</div>
-                                    <div class="tool-code">${esc(typeof st.output === 'string' ? st.output : JSON.stringify(st.output, null, 2))}</div>
+                                    <pre class="tool-code"><code class="${outputIsJson ? 'language-json' : ''}">${esc(outputText)}</code></pre>
                                 </div>
                             ` : ''}
                         </div>
@@ -1427,6 +1455,17 @@
                         </div>
                     `;
                 }).join('');
+            
+            // Apply syntax highlighting to all code blocks
+            applySyntaxHighlighting();
+        }
+        
+        // Apply syntax highlighting to code blocks
+        function applySyntaxHighlighting() {
+            // Find all code blocks inside pre elements that haven't been highlighted yet
+            document.querySelectorAll('pre code:not(.hljs)').forEach((block) => {
+                hljs.highlightElement(block);
+            });
         }
         
         // Update stats
