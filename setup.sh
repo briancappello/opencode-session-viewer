@@ -98,6 +98,20 @@ info "Starting service..."
 systemctl --user start "$SERVICE_NAME"
 
 # ---------------------------------------------------------------------------
+# 6. Install cron job for automatic DB sync
+# ---------------------------------------------------------------------------
+info "Installing cron job for automatic DB sync..."
+
+CRON_JOB="* * * * * curl -s -X POST http://127.0.0.1:${SERVICE_PORT}/api/sync > /dev/null 2>&1"
+
+if crontab -l 2>/dev/null | grep -qF "/api/sync"; then
+    warn "Cron job already exists — skipping."
+else
+    (crontab -l 2>/dev/null; echo "$CRON_JOB") | crontab -
+    success "Cron job installed (runs every minute)"
+fi
+
+# ---------------------------------------------------------------------------
 # Done
 # ---------------------------------------------------------------------------
 echo ""
