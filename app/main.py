@@ -18,7 +18,6 @@ from app.overrides_db import (
 from app.search_db import is_session_archived, set_session_archived
 from app.services import (
     format_timestamp,
-    get_storage_path,
     list_archived_sessions,
     list_directories,
     list_sessions,
@@ -47,15 +46,7 @@ app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="stat
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request, all: bool = False):
-    storage_path = get_storage_path()
-
-    if not storage_path.exists():
-        return templates.TemplateResponse(
-            "dashboard.html",
-            {"request": request, "sessions": [], "error": "Storage path not found"},
-        )
-
-    sessions = list_sessions(storage_path, show_all=all)
+    sessions = list_sessions(show_all=all)
 
     display_sessions = []
     for s in sessions:
@@ -170,9 +161,7 @@ async def api_delete_session_override(session_id: str):
 @app.get("/archived", response_class=HTMLResponse)
 async def archived_sessions(request: Request):
     """View archived sessions."""
-    storage_path = get_storage_path()
-
-    sessions = list_archived_sessions(storage_path)
+    sessions = list_archived_sessions()
 
     display_sessions = []
     for s in sessions:
@@ -199,10 +188,8 @@ async def archived_sessions(request: Request):
 
 @app.get("/session/{session_id}", response_class=HTMLResponse)
 async def view_session(request: Request, session_id: str):
-    storage_path = get_storage_path()
-
     try:
-        session_data = load_session_export(storage_path, session_id)
+        session_data = load_session_export(session_id)
 
         # We need to pass the JSON as a string to the template for injection
         # Escape forward slashes to prevent </script> attacks/breakage

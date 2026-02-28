@@ -97,9 +97,6 @@ class SessionSummary(BaseModel):
     # User-defined overrides (None when not set)
     human_id: Optional[str] = None
 
-    # Data source — not persisted upstream, set by the service layer
-    source: Optional[str] = None  # "db" | "files"
-
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 

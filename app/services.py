@@ -24,9 +24,9 @@ from app.search_db import (
 )
 
 
-def get_storage_path() -> Path:
-    """Get the OpenCode storage path."""
-    return Path.home() / ".local/share/opencode/storage"
+def get_db_path() -> Path:
+    """Get the OpenCode SQLite database path."""
+    return Path.home() / ".local/share/opencode/opencode.db"
 
 
 def apply_overrides(summary: SessionSummary) -> SessionSummary:
@@ -46,12 +46,6 @@ def apply_overrides(summary: SessionSummary) -> SessionSummary:
     return summary
 
 
-def load_json(path: Path) -> dict:
-    """Load a JSON file."""
-    with open(path) as f:
-        return json.load(f)
-
-
 def list_sessions_from_db(db_path: Path) -> List[SessionSummary]:
     """List all sessions from the SQLite database."""
     if not db_path.exists():
@@ -59,14 +53,11 @@ def list_sessions_from_db(db_path: Path) -> List[SessionSummary]:
 
     results = []
     try:
-        # Use SQLAlchemy session
         with get_db_session(db_path) as db:
-            # Query sessions
-            stmt = select(SessionModel)
-            sessions = db.scalars(stmt).all()
+            sessions = db.scalars(select(SessionModel)).all()
 
             for s in sessions:
-                # Fetch model name
+                # Fetch model name from the first message that carries one
                 model_name = "Unknown"
                 msg = db.scalars(
                     select(MessageModel)
@@ -83,78 +74,29 @@ def list_sessions_from_db(db_path: Path) -> List[SessionSummary]:
                             or msg_data.get("modelID")
                             or "Unknown"
                         )
-                    except:
+                    except Exception:
                         pass
 
-                # Convert using from_attributes
                 summary = SessionSummary.model_validate(s)
                 summary.model = model_name
-                summary.source = "db"
-
                 results.append(summary)
 
     except Exception as e:
         print(f"Warning: Failed to load sessions from DB: {e}", file=sys.stderr)
-    return results
-
-
-def get_session_summary_from_files(
-    storage_path: Path, session_id: str
-) -> SessionSummary | None:
-    try:
-        return [
-            session
-            for session in list_sessions_from_files(storage_path)
-            if session.id == session_id
-        ][0]
-    except IndexError:
-        return None
-
-
-def list_sessions_from_files(storage_path: Path) -> List[SessionSummary]:
-    """List sessions from legacy JSON files."""
-    results = []
-    session_base = storage_path / "session"
-
-    if not session_base.exists():
-        return results
-
-    # Check all subdirectories (global and project-specific)
-    for subdir in session_base.iterdir():
-        if subdir.is_dir():
-            for session_file in subdir.glob("*.json"):
-                try:
-                    data = load_json(session_file)
-                    data = _transform_legacy_session(data)
-                    # Convert dict to Pydantic
-                    summary = SessionSummary.model_validate(data)
-                    summary.source = "files"
-                    results.append(summary)
-                except Exception:
-                    continue
 
     return results
 
 
-def list_sessions(storage_path: Path, show_all: bool = False) -> List[SessionSummary]:
-    """List all available sessions (DB and legacy files), excluding archived."""
-    sessions_map = {}  # Map ID to session to avoid duplicates
-
-    # Get archived session IDs to exclude
+def list_sessions(show_all: bool = False) -> List[SessionSummary]:
+    """List all sessions from the DB, excluding archived, with overrides applied."""
     archived_ids = get_archived_session_ids()
 
-    # Try DB first
-    db_path = storage_path.parent / "opencode.db"
-    for s in list_sessions_from_db(db_path):
-        if s.id not in archived_ids:
-            sessions_map[s.id] = apply_overrides(s)
+    sessions_map = {
+        s.id: apply_overrides(s)
+        for s in list_sessions_from_db(get_db_path())
+        if s.id not in archived_ids
+    }
 
-    # Try legacy files
-    for s in list_sessions_from_files(storage_path):
-        if s.id not in sessions_map and s.id not in archived_ids:
-            sessions_map[s.id] = apply_overrides(s)
-
-    # Sort by last updated time (most recent first)
     sorted_sessions = sorted(
         sessions_map.values(), key=lambda s: s.time_updated or 0, reverse=True
     )
@@ -169,33 +111,21 @@ def list_sessions(storage_path: Path, show_all: bool = False) -> List[SessionSum
     return sorted_sessions
 
 
-def list_archived_sessions(storage_path: Path) -> List[SessionSummary]:
-    """List archived sessions only."""
-    sessions_map = {}  # Map ID to session to avoid duplicates
-
-    # Get archived session IDs
+def list_archived_sessions() -> List[SessionSummary]:
+    """List archived sessions only, with overrides applied."""
     archived_ids = get_archived_session_ids()
-
     if not archived_ids:
         return []
 
-    # Try DB first
-    db_path = storage_path.parent / "opencode.db"
-    for s in list_sessions_from_db(db_path):
-        if s.id in archived_ids:
-            sessions_map[s.id] = apply_overrides(s)
+    sessions_map = {
+        s.id: apply_overrides(s)
+        for s in list_sessions_from_db(get_db_path())
+        if s.id in archived_ids
+    }
 
-    # Try legacy files
-    for s in list_sessions_from_files(storage_path):
-        if s.id not in sessions_map and s.id in archived_ids:
-            sessions_map[s.id] = apply_overrides(s)
-
-    # Sort by last updated time (most recent first)
-    sorted_sessions = sorted(
+    return sorted(
         sessions_map.values(), key=lambda s: s.time_updated or 0, reverse=True
     )
-
-    return sorted_sessions
 
 
 def format_timestamp(ts: Optional[int]) -> str:
@@ -206,136 +136,48 @@ def format_timestamp(ts: Optional[int]) -> str:
 
 
 def export_session_from_db(db_path: Path, session_id: str) -> SessionExport:
-    """Export a session from the SQLite database."""
+    """Export a full session with messages from the SQLite database."""
     try:
         with get_db_session(db_path) as db:
-            # Check session exists
             session_model = db.get(SessionModel, session_id)
             if not session_model:
-                raise ValueError(f"Session not found in DB: {session_id}")
+                raise ValueError(f"Session not found: {session_id}")
 
-            # Get messages with parts eager loaded
             stmt = (
                 select(MessageModel)
                 .where(MessageModel.session_id == session_id)
                 .order_by(MessageModel.time_created)
             )
-            message_models = db.scalars(stmt).all()
-
-            # Pydantic model_validate will use properties on MessageModel to load role, parts, etc.
-            messages = [Message.model_validate(m) for m in message_models]
+            messages = [
+                Message.model_validate(m) for m in db.scalars(stmt).all()
+            ]
 
             return SessionExport(
-                summary=SessionSummary.model_validate(session_model),
+                summary=apply_overrides(SessionSummary.model_validate(session_model)),
                 messages=messages,
             )
 
     except Exception as e:
         if isinstance(e, ValueError):
             raise
-        raise ValueError(f"Failed to export from DB: {e}")
+        raise ValueError(f"Failed to export session: {e}")
 
 
-def export_session_from_files(storage_path: Path, session_id: str) -> SessionExport:
-    """Export a session from legacy files."""
-    message_path = storage_path / "message" / session_id
-
-    if not message_path.exists():
-        raise ValueError(f"Session not found: {session_id}")
-
-    messages = []
-    for msg_file in message_path.glob("*.json"):
-        try:
-            msg_data = load_json(msg_file)
-
-            # Load parts
-            part_dir = storage_path / "part" / msg_data["id"]
-            parts = []
-            if part_dir.exists():
-                for part_file in sorted(part_dir.glob("*.json")):
-                    try:
-                        parts.append(load_json(part_file))
-                    except:
-                        continue
-
-            msg_data["parts"] = parts
-            msg_data = _transform_legacy_message(msg_data)
-
-            messages.append(Message.model_validate(msg_data))
-        except Exception as e:
-            print(f"Warning: Failed to load message {msg_file}: {e}", file=sys.stderr)
-            continue
-
-    # Sort by creation time
-    messages.sort(key=lambda m: m.time_created or 0)
-
-    return SessionExport(
-        summary=get_session_summary_from_files(storage_path, session_id),
-        messages=messages,
-    )
-
-
-def load_session_export(storage_path: Path, session_id: str) -> SessionExport:
-    """Export a session to a Pydantic model (DB or legacy files)."""
-    # Try DB first
-    db_path = storage_path.parent / "opencode.db"
-    if db_path.exists():
-        try:
-            return export_session_from_db(db_path, session_id)
-        except ValueError:
-            pass
-
-    # Legacy file-based export
-    return export_session_from_files(storage_path, session_id)
-
-
-def _transform_legacy_session(data: dict) -> dict:
-    """Transform legacy nested JSON to flat structure."""
-    if "time" in data and isinstance(data["time"], dict):
-        data["time_created"] = data["time"].get("created")
-        data["time_updated"] = data["time"].get("updated")
-
-    if "summary" in data and isinstance(data["summary"], dict):
-        data["summary_additions"] = data["summary"].get("additions")
-        data["summary_deletions"] = data["summary"].get("deletions")
-        data["summary_files"] = data["summary"].get("files")
-    return data
-
-
-def _transform_legacy_message(data: dict) -> dict:
-    """Transform legacy nested message JSON to flat structure."""
-    if "time" in data and isinstance(data["time"], dict):
-        data["time_created"] = data["time"].get("created")
-        data["time_updated"] = data["time"].get("updated")
-
-    if "parts" in data and isinstance(data["parts"], list):
-        for part in data["parts"]:
-            if "time" in part and isinstance(part["time"], dict):
-                part["time_created"] = part["time"].get("created")
-    return data
+def load_session_export(session_id: str) -> SessionExport:
+    """Load a full session export from the DB."""
+    return export_session_from_db(get_db_path(), session_id)
 
 
 def _escape_fts5_query(query: str) -> str:
-    """Escape special FTS5 characters for literal/plaintext search.
-
-    FTS5 special characters that need escaping: " * ( ) : ^
-    We wrap the query in double quotes to search for the exact phrase.
-    Any internal double quotes are escaped by doubling them.
-    """
-    # Escape internal double quotes by doubling them
+    """Escape special FTS5 characters for literal/plaintext search."""
     escaped = query.replace('"', '""')
-    # Wrap in double quotes for phrase search (literal matching)
     return f'"{escaped}"'
 
 
 def _generate_snippet(
     content: str, pattern: re.Pattern, snippet_length: int = 100
 ) -> str:
-    """Generate a snippet with match markers for regex search results.
-
-    Returns a snippet of text around the first match with <<MATCH>> and <<END>>
-    markers for highlighting.
-    """
+    """Generate a snippet with match markers for regex search results."""
     match = pattern.search(content)
     if not match:
         return content[:snippet_length] + ("..." if len(content) > snippet_length else "")
@@ -521,10 +363,7 @@ def search_sessions(
                         )
                     )
 
-        # Convert to list and limit
-        results = list(results_map.values())[:limit]
-
-    return results
+    return list(results_map.values())[:limit]
 
 
 def list_directories() -> List[str]:

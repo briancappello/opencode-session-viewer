@@ -8,8 +8,6 @@ This project now includes a **FastAPI web application** for browsing and viewing
 
 ### 1. Install Dependencies
 
-Using `uv`:
-
 ```bash
 uv sync
 ```
@@ -26,21 +24,6 @@ Open **http://127.0.0.1:8000** in your browser.
 
 - **Dashboard:** View all sessions, filter by date, search, toggle subagents.
 - **Session Viewer:** Detailed timeline view with markdown rendering, syntax highlighting, and token usage charts.
-
-### 3. CLI Export (Optional)
-
-You can still use the CLI script to export sessions to a JSON file if needed:
-
-```bash
-# Interactive mode
-uv run export_session.py
-
-# List all sessions
-uv run export_session.py --list
-
-# Export specific session
-uv run export_session.py ses_abc123...
-```
 
 ## Features
 
