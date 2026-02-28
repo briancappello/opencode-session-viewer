@@ -64,7 +64,11 @@
 
       <div class="session-list" id="sessionList">
         {% for session in sessions %}
-          <div class="session-item" data-session-id="{{ session.id }}">
+          <div
+            class="session-item"
+            data-session-id="{{ session.id }}"
+            data-source="{{ session.source or 'db' }}"
+          >
             <a href="/session/{{ session.id }}" class="session-item-link">
               <div class="session-header">
                 <div class="session-title">

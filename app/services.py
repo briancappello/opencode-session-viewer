@@ -16,6 +16,7 @@ from app.models import (
     SessionExport,
     SessionSummary,
 )
+from app.overrides_db import get_session_override
 from app.search_db import (
     SEARCH_DB_PATH,
     get_archived_session_ids,
@@ -26,6 +27,23 @@ from app.search_db import (
 def get_storage_path() -> Path:
     """Get the OpenCode storage path."""
     return Path.home() / ".local/share/opencode/storage"
+
+
+def apply_overrides(summary: SessionSummary) -> SessionSummary:
+    """Apply any user-defined overrides to a SessionSummary.
+
+    Fetches the override row for this session and replaces fields where an
+    override value is set (non-None).  The canonical ``id`` is never changed.
+    Returns the same object mutated in place for convenience.
+    """
+    override = get_session_override(summary.id)
+    if override is None:
+        return summary
+    if override.title is not None:
+        summary.title = override.title
+    if override.human_id is not None:
+        summary.human_id = override.human_id
+    return summary
 
 
 def load_json(path: Path) -> dict:
@@ -71,6 +89,7 @@ def list_sessions_from_db(db_path: Path) -> List[SessionSummary]:
                 # Convert using from_attributes
                 summary = SessionSummary.model_validate(s)
                 summary.model = model_name
+                summary.source = "db"
 
                 results.append(summary)
 
@@ -109,7 +128,7 @@ def list_sessions_from_files(storage_path: Path) -> List[SessionSummary]:
                     data = _transform_legacy_session(data)
                     # Convert dict to Pydantic
                     summary = SessionSummary.model_validate(data)
-                    # Legacy files usually don't have the model name easily accessible
+                    summary.source = "files"
                     results.append(summary)
                 except Exception:
                     continue
@@ -128,12 +147,12 @@ def list_sessions(storage_path: Path, show_all: bool = False) -> List[SessionSum
     db_path = storage_path.parent / "opencode.db"
     for s in list_sessions_from_db(db_path):
         if s.id not in archived_ids:
-            sessions_map[s.id] = s
+            sessions_map[s.id] = apply_overrides(s)
 
     # Try legacy files
     for s in list_sessions_from_files(storage_path):
         if s.id not in sessions_map and s.id not in archived_ids:
-            sessions_map[s.id] = s
+            sessions_map[s.id] = apply_overrides(s)
 
     # Sort by last updated time (most recent first)
     sorted_sessions = sorted(
@@ -164,12 +183,12 @@ def list_archived_sessions(storage_path: Path) -> List[SessionSummary]:
     db_path = storage_path.parent / "opencode.db"
     for s in list_sessions_from_db(db_path):
         if s.id in archived_ids:
-            sessions_map[s.id] = s
+            sessions_map[s.id] = apply_overrides(s)
 
     # Try legacy files
     for s in list_sessions_from_files(storage_path):
         if s.id not in sessions_map and s.id in archived_ids:
-            sessions_map[s.id] = s
+            sessions_map[s.id] = apply_overrides(s)
 
     # Sort by last updated time (most recent first)
     sorted_sessions = sorted(

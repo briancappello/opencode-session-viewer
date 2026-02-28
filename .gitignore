@@ -21,6 +21,9 @@ session_data.json
 search_index.db
 search_index.db-shm
 search_index.db-wal
+overrides.db
+overrides.db-shm
+overrides.db-wal
 
 # Build / Distribution
 dist/

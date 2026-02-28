@@ -8,6 +8,13 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from app.models import SessionOverrideRead, SessionOverrideWrite
+from app.overrides_db import (
+    delete_session_override,
+    get_session_override,
+    init_overrides_db,
+    set_session_override,
+)
 from app.search_db import is_session_archived, set_session_archived
 from app.services import (
     format_timestamp,
@@ -23,7 +30,8 @@ from app.sync import sync_search_index as _sync_search_index
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan: sync search index on startup."""
+    """Application lifespan: initialise databases and sync search index on startup."""
+    init_overrides_db()
     _sync_search_index()
     yield
 
@@ -124,6 +132,39 @@ async def api_session_archived_status(session_id: str):
     """Check if a session is archived."""
     archived = is_session_archived(session_id)
     return JSONResponse(content={"session_id": session_id, "archived": archived})
+
+
+@app.get("/api/session/{session_id}/override", response_model=SessionOverrideRead)
+async def api_get_session_override(session_id: str):
+    """Get user-defined overrides for a session.
+
+    Returns the override row if one exists, or default (all-None) values if not.
+    """
+    row = get_session_override(session_id)
+    if row is None:
+        return SessionOverrideRead(session_id=session_id)
+    return SessionOverrideRead.model_validate(row)
+
+
+@app.patch("/api/session/{session_id}/override", response_model=SessionOverrideRead)
+async def api_patch_session_override(session_id: str, body: SessionOverrideWrite):
+    """Create or update overrides for a session.
+
+    Only fields included in the request body are changed.  Pass ``null`` for a
+    field to clear that override (reverting to the upstream value).
+    """
+    row = set_session_override(
+        session_id=session_id,
+        **{k: v for k, v in body.model_dump(exclude_unset=False).items()},
+    )
+    return SessionOverrideRead.model_validate(row)
+
+
+@app.delete("/api/session/{session_id}/override", status_code=204)
+async def api_delete_session_override(session_id: str):
+    """Remove all overrides for a session, reverting to upstream values."""
+    delete_session_override(session_id)
+    return None
 
 
 @app.get("/archived", response_class=HTMLResponse)
