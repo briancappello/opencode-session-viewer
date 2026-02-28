@@ -386,6 +386,98 @@ function detectVisibleMessage() {
   }
 }
 
+// Format markdown tables from "machine view" (compact) to "human view" (padded columns)
+function formatMarkdownTables(text) {
+  const lines = text.split("\n");
+  const result = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    // Detect a table block: a line that starts and ends with | (ignoring whitespace)
+    if (/^\s*\|.*\|\s*$/.test(lines[i])) {
+      // Collect all consecutive table lines
+      const tableLines = [];
+      while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) {
+        tableLines.push(lines[i].trim());
+        i++;
+      }
+
+      // Parse each row into cells
+      const rows = tableLines.map((line) => {
+        // Strip leading/trailing pipes then split
+        const inner = line.replace(/^\||\|$/g, "");
+        return inner.split("|").map((cell) => cell.trim());
+      });
+
+      // Identify the separator row (all cells match /^:?-+:?$/)
+      const sepIdx = rows.findIndex((row) =>
+        row.every((cell) => /^:?-+:?$/.test(cell)),
+      );
+
+      if (sepIdx === -1 || rows.length < 2) {
+        // Not a real table — emit as-is
+        tableLines.forEach((l) => result.push(l));
+        continue;
+      }
+
+      // Determine column count from the widest row
+      const colCount = Math.max(...rows.map((r) => r.length));
+
+      // Compute max width per column
+      const colWidths = Array(colCount).fill(1);
+      rows.forEach((row, ri) => {
+        if (ri === sepIdx) return; // Skip separator row for width calc
+        row.forEach((cell, ci) => {
+          if (ci < colCount) {
+            colWidths[ci] = Math.max(colWidths[ci], cell.length);
+          }
+        });
+      });
+      // Ensure separator dashes fill the column width
+      colWidths.forEach((w, ci) => {
+        colWidths[ci] = Math.max(w, 3); // At minimum "---"
+      });
+
+      // Rebuild rows
+      rows.forEach((row, ri) => {
+        const cells = Array(colCount)
+          .fill("")
+          .map((_, ci) => row[ci] ?? "");
+
+        let formatted;
+        if (ri === sepIdx) {
+          // Separator row: pipes and dashes only, no spaces.
+          // Each data cell is padEnd(w) surrounded by " | ", so each separator
+          // segment must be w+2 dashes wide to match the visual column width.
+          formatted =
+            "|" +
+            cells
+              .map((cell, ci) => {
+                const w = colWidths[ci] + 2;
+                if (/^:-+:$/.test(cell))
+                  return ":" + "-".repeat(w - 2) + ":" + "|";
+                if (/^:-+$/.test(cell)) return ":" + "-".repeat(w - 1) + "|";
+                if (/^-+:$/.test(cell)) return "-".repeat(w - 1) + ":" + "|";
+                return "-".repeat(w) + "|";
+              })
+              .join("");
+        } else {
+          formatted =
+            "| " +
+            cells.map((cell, ci) => cell.padEnd(colWidths[ci])).join(" | ") +
+            " |";
+        }
+        result.push(formatted);
+      });
+    } else {
+      result.push(lines[i]);
+      i++;
+    }
+  }
+
+  return result.join("\n");
+}
+
 // Copy markdown to clipboard
 function copyMarkdown(idx) {
   const msg = SESSION_DATA.messages[idx];
@@ -415,7 +507,7 @@ function copyMarkdown(idx) {
   });
 
   navigator.clipboard
-    .writeText(markdown.trim())
+    .writeText(formatMarkdownTables(markdown.trim()))
     .then(() => {
       const btn = document.querySelector(`#msg-${idx} .copy-btn`);
       const originalHtml = btn.innerHTML;
