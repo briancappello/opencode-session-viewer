@@ -66,11 +66,11 @@ success "Checks passed (branch: $CURRENT_BRANCH)"
 # 2. Merge current branch into prod
 # ---------------------------------------------------------------------------
 info "Merging '$CURRENT_BRANCH' into '$PROD_BRANCH'..."
-git -C "$PROD_DIR" merge --ff-only "$DEV_DIR" 2>/dev/null \
-    || git -C "$PROD_DIR" merge "origin/$CURRENT_BRANCH" --ff-only 2>/dev/null \
-    || git -C "$PROD_DIR" merge "$(git -C "$DEV_DIR" rev-parse HEAD)" --ff-only
+DEPLOY_SHA="$(git -C "$DEV_DIR" rev-parse HEAD)"
+git -C "$PROD_DIR" fetch "$DEV_DIR" "$CURRENT_BRANCH"
+git -C "$PROD_DIR" merge --ff-only "$DEPLOY_SHA"
 
-DEPLOYED_SHA="$(git -C "$PROD_DIR" rev-parse --short HEAD)"
+DEPLOYED_SHA="$(git -C "$PROD_DIR" rev-parse --short "$DEPLOY_SHA")"
 success "Prod is now at $DEPLOYED_SHA"
 
 # ---------------------------------------------------------------------------
