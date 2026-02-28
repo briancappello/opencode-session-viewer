@@ -16,9 +16,25 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 from app.config import Config
 
 
+def _make_engine():
+    engine = create_engine(f"sqlite:///{Config.MAIN_DB_PATH}")
+
+    @event.listens_for(engine, "connect")
+    def set_pragma(dbapi_connection, _connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
+    return engine
+
+
+_engine = _make_engine()
+
+
 def get_db_session() -> Session:
     """Create a new SQLAlchemy session for the database."""
-    return Session(get_db_engine())
+    return Session(_engine)
 
 
 class Base(DeclarativeBase):
@@ -49,25 +65,10 @@ class Conversation(Base):
     archived: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
 
-def get_db_engine():
-    """Create engine for the database."""
-    engine = create_engine(f"sqlite:///{Config.MAIN_DB_PATH}")
-
-    @event.listens_for(engine, "connect")
-    def set_pragma(dbapi_connection, _connection_record):
-        cursor = dbapi_connection.cursor()
-        cursor.execute("PRAGMA journal_mode=WAL")
-        cursor.execute("PRAGMA foreign_keys=ON")
-        cursor.close()
-
-    return engine
-
-
 def init_db():
     """Create tables if they don't exist, and run any pending migrations."""
     Config.DATA_DIR.mkdir(parents=True, exist_ok=True)
-    engine = get_db_engine()
-    Base.metadata.create_all(engine)
+    Base.metadata.create_all(_engine)
 
 
 # ---------------------------------------------------------------------------

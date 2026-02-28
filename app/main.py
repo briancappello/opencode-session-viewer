@@ -60,9 +60,9 @@ async def dashboard(request: Request, all: bool = False):
         display_conversations.append(s_dict)
 
     return templates.TemplateResponse(
+        request,
         "dashboard.html",
         {
-            "request": request,
             "conversations": display_conversations,
             "show_all": all,
         },
@@ -144,9 +144,9 @@ async def archived_conversations(request: Request):
         display_conversations.append(s_dict)
 
     return templates.TemplateResponse(
+        request,
         "archived.html",
         {
-            "request": request,
             "conversations": display_conversations,
         },
     )
@@ -163,9 +163,9 @@ async def view_conversation(request: Request, conversation_id: str):
     conversation_json = conversation_data.model_dump_json().replace("</", "<\\/")
 
     return templates.TemplateResponse(
+        request,
         "conversation.html",
         {
-            "request": request,
             "conversation": conversation_data,
             "conversation_json": conversation_json,
         },

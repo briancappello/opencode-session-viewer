@@ -19,10 +19,25 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 from app.config import Config
 
 
+def _make_engine():
+    engine = create_engine(f"sqlite:///{Config.SEARCH_DB_PATH}")
+
+    @event.listens_for(engine, "connect")
+    def set_sqlite_pragma(dbapi_connection, connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.close()
+        dbapi_connection.create_function("REGEXP", 2, _sqlite_regexp)
+
+    return engine
+
+
+_engine = _make_engine()
+
+
 def get_search_session() -> Session:
     """Create a new SQLAlchemy session for the search database."""
-    engine = get_search_engine()
-    return Session(engine)
+    return Session(_engine)
 
 
 class SearchBase(DeclarativeBase):
@@ -75,25 +90,9 @@ def _sqlite_regexp(pattern: str, string: str) -> bool:
         return False
 
 
-def get_search_engine():
-    """Create engine for the search index database."""
-    engine = create_engine(f"sqlite:///{Config.SEARCH_DB_PATH}")
-
-    # Enable FTS5 support and register REGEXP function
-    @event.listens_for(engine, "connect")
-    def set_sqlite_pragma(dbapi_connection, connection_record):
-        cursor = dbapi_connection.cursor()
-        cursor.execute("PRAGMA journal_mode=WAL")
-        cursor.close()
-        # Register REGEXP function for regex search support
-        dbapi_connection.create_function("REGEXP", 2, _sqlite_regexp)
-
-    return engine
-
-
 def init_search_db():
     """Initialize the search database with tables and FTS5 virtual table."""
-    engine = get_search_engine()
+    engine = _engine
 
     # Create regular tables
     SearchBase.metadata.create_all(engine)

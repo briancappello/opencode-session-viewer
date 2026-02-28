@@ -24,3 +24,7 @@ session_data.json
 dist/
 build/
 *.egg-info/
+
+# Test coverage
+.coverage
+htmlcov/

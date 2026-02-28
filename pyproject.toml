@@ -14,6 +14,11 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "httpx>=0.28.0",
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest-cov>=6.0.0",
+    "pytest-xdist>=3.8.0",
     "ruff>=0.15.1",
 ]
 
@@ -39,3 +44,13 @@ section-order = [
 
 [tool.ruff.lint.isort.sections]
 tests = ["tests"]
+
+[tool.pytest.ini_options]
+addopts = "--cov=app --cov-report=term-missing --cov-report=html:htmlcov"
+
+[tool.coverage.run]
+branch = true
+source = ["app"]
+
+[tool.coverage.report]
+show_missing = true

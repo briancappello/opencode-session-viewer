@@ -8,10 +8,12 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, rela
 from app.config import Config
 
 
+_engine = create_engine(f"sqlite:///{Config.OPENCODE_DB_PATH}?mode=ro")
+
+
 def get_upstream_session() -> Session:
     """Create a new read-only SQLAlchemy session for the upstream database."""
-    engine = create_engine(f"sqlite:///{Config.OPENCODE_DB_PATH}?mode=ro")
-    return Session(engine)
+    return Session(_engine)
 
 
 class UpstreamBase(DeclarativeBase):
