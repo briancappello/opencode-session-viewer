@@ -1,9 +1,9 @@
 /* =============================================================================
-   Session page layout
+   Conversation page layout
    ============================================================================= */
 
 body {
-  /* Override base padding — session page is full-viewport, no padding */
+  /* Override base padding — conversation page is full-viewport, no padding */
   padding: 0;
 }
 
@@ -392,7 +392,7 @@ body {
   padding: 16px;
 }
 
-.session-actions {
+.conversation-actions {
   display: flex;
   align-items: center;
   gap: 4px;

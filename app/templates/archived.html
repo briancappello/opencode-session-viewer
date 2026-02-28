@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Archived Sessions | OpenCode</title>
+    <title>Archived Conversations | OpenCode</title>
     <link rel="stylesheet" href="/static/css/base.css" />
     <link rel="stylesheet" href="/static/css/archived.css" />
   </head>
@@ -12,8 +12,10 @@
       <div class="header">
         <div class="title">
           <a href="/" class="back-link">← Back</a>
-          <span>Archived Sessions</span>
-          <span class="archived-badge">{{ sessions|length }} archived</span>
+          <span>Archived Conversations</span>
+          <span class="archived-badge"
+            >{{ conversations|length }} archived</span
+          >
         </div>
         <div class="controls">
           <button
@@ -26,40 +28,48 @@
         </div>
       </div>
 
-      <div class="session-list" id="sessionList">
-        {% for session in sessions %}
-          <div class="session-item" data-session-id="{{ session.id }}">
-            <a href="/session/{{ session.id }}" class="session-content">
-              <div class="session-header">
-                <div class="session-title">
-                  {{ session.title or "Untitled" }}
+      <div class="conversation-list" id="conversationList">
+        {% for conversation in conversations %}
+          <div
+            class="conversation-item"
+            data-conversation-id="{{ conversation.id }}"
+          >
+            <a
+              href="/conversation/{{ conversation.id }}"
+              class="conversation-content"
+            >
+              <div class="conversation-header">
+                <div class="conversation-title">
+                  {{ conversation.title or "Untitled" }}
                 </div>
-                <div class="session-time">{{ session.updated_formatted }}</div>
+                <div class="conversation-time">
+                  {{ conversation.updated_formatted }}
+                </div>
               </div>
-              <div class="session-meta">
+              <div class="conversation-meta">
                 <div class="meta-item">
                   <span>📂</span>
-                  <span class="directory" title="{{ session.directory }}"
-                    >{{ session.directory_short }}</span
+                  <span class="directory" title="{{ conversation.directory }}"
+                    >{{ conversation.directory_short }}</span
                   >
                 </div>
-                {% if session.model %}
+                {% if conversation.model %}
                   <div class="meta-item">
                     <span>🤖</span>
-                    <span>{{ session.model }}</span>
+                    <span>{{ conversation.model }}</span>
                   </div>
                 {% endif %}
               </div>
             </a>
             <button
               class="unarchive-btn"
-              onclick="unarchiveSession('{{ session.id }}', this)"
+              onclick="unarchiveConversation('{{ conversation.id }}', this)"
             >
               Unarchive
             </button>
           </div>
         {% else %}
-          <div class="empty-state">No archived sessions.</div>
+          <div class="empty-state">No archived conversations.</div>
         {% endfor %}
       </div>
     </div>

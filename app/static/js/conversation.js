@@ -1,5 +1,5 @@
-// Session Viewer JavaScript
-// This file contains all the client-side logic for the session detail page
+// Conversation Viewer JavaScript
+// This file contains all the client-side logic for the conversation detail page
 
 let SESSION_DATA = null;
 let currentFilter = "all";
@@ -793,7 +793,7 @@ async function checkArchiveStatus() {
   if (!SESSION_DATA) return;
   try {
     const response = await fetch(
-      `/api/session/${SESSION_DATA.summary.id}/archived`,
+      `/api/conversation/${SESSION_DATA.summary.id}/archived`,
     );
     const data = await response.json();
     isArchived = data.archived;
@@ -808,11 +808,11 @@ function updateArchiveButton() {
   if (isArchived) {
     btn.textContent = "Archived";
     btn.classList.add("archived");
-    btn.title = "Unarchive this session";
+    btn.title = "Unarchive this conversation";
   } else {
     btn.textContent = "Archive";
     btn.classList.remove("archived");
-    btn.title = "Archive this session";
+    btn.title = "Archive this conversation";
   }
 }
 
@@ -825,7 +825,7 @@ async function toggleArchive() {
   try {
     const action = isArchived ? "unarchive" : "archive";
     const response = await fetch(
-      `/api/session/${SESSION_DATA.summary.id}/${action}`,
+      `/api/conversation/${SESSION_DATA.summary.id}/${action}`,
       {
         method: "POST",
       },
@@ -853,7 +853,7 @@ async function toggleArchive() {
 }
 
 // Initialize everything when DOM is ready
-function initSession() {
+function initConversation() {
   // Initialize sidebar resize
   initSidebarResize();
 
@@ -886,7 +886,7 @@ function initSession() {
 
   // Load data from script tag
   try {
-    const jsonText = document.getElementById("session-data").textContent;
+    const jsonText = document.getElementById("conversation-data").textContent;
     const INITIAL_DATA = JSON.parse(jsonText);
     if (INITIAL_DATA) {
       loadData(INITIAL_DATA);
@@ -894,13 +894,13 @@ function initSession() {
       checkArchiveStatus();
     }
   } catch (e) {
-    console.error("Failed to parse session data:", e);
+    console.error("Failed to parse conversation data:", e);
   }
 }
 
 // Run initialization when DOM is ready
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", initSession);
+  document.addEventListener("DOMContentLoaded", initConversation);
 } else {
-  initSession();
+  initConversation();
 }

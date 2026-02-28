@@ -193,22 +193,22 @@ body {
 }
 
 /* =============================================================================
-   Session list items (dashboard-specific layout/interactions)
+   Conversation list items (dashboard-specific layout/interactions)
    ============================================================================= */
 
-.session-item {
+.conversation-item {
   display: block;
   position: relative;
   padding: 16px;
 }
 
-.session-item-link {
+.conversation-item-link {
   display: block;
   text-decoration: none;
   color: inherit;
 }
 
-.session-id-copy {
+.conversation-id-copy {
   cursor: pointer;
   padding: 2px 6px;
   border-radius: 4px;
@@ -218,20 +218,20 @@ body {
   user-select: none;
 }
 
-.session-id-copy:hover {
+.conversation-id-copy:hover {
   background: rgba(35, 131, 226, 0.12);
   color: var(--accent-blue) !important;
 }
 
-.session-id-copy:hover span {
+.conversation-id-copy:hover span {
   color: var(--accent-blue) !important;
 }
 
-.session-id-copy.copied {
+.conversation-id-copy.copied {
   background: rgba(35, 131, 226, 0.2);
 }
 
-.session-item .archive-link {
+.conversation-item .archive-link {
   position: absolute;
   bottom: 12px;
   right: 12px;
@@ -245,11 +245,11 @@ body {
   z-index: 1;
 }
 
-.session-item:hover .archive-link {
+.conversation-item:hover .archive-link {
   opacity: 1;
 }
 
-.session-item .archive-link:hover {
+.conversation-item .archive-link:hover {
   color: var(--accent-orange);
   background: rgba(217, 115, 13, 0.1);
 }

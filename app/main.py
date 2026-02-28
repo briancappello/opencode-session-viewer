@@ -1,5 +1,4 @@
 from contextlib import asynccontextmanager
-from pathlib import Path
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -8,48 +7,46 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from app.models import SessionOverrideRead, SessionOverrideWrite
-from app.overrides_db import (
-    delete_session_override,
-    get_session_override,
-    init_overrides_db,
-    set_session_override,
+from app.config import Config
+from app.db import (
+    init_db,
+    is_conversation_archived,
+    set_conversation_archived,
 )
-from app.search_db import is_session_archived, set_session_archived
 from app.services import (
     format_timestamp,
-    list_archived_sessions,
+    list_archived_conversations,
+    list_conversations,
     list_directories,
-    list_sessions,
-    load_session_export,
-    search_sessions,
+    load_conversation_export,
+    search_conversations,
 )
-from app.sync import sync_search_index as _sync_search_index
+from app.sync import sync_search_index
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan: initialise databases and sync search index on startup."""
-    init_overrides_db()
-    _sync_search_index()
+    init_db()
+    sync_search_index()
     yield
 
 
-app = FastAPI(title="OpenCode Session Viewer", lifespan=lifespan)
+app = FastAPI(title=Config.TITLE, lifespan=lifespan)
 
-BASE_DIR = Path(__file__).resolve().parent
-templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+static_assets = StaticFiles(directory=str(Config.STATIC_ASSETS_DIR))
+templates = Jinja2Templates(directory=str(Config.TEMPLATES_DIR))
 
 # Mount static files
-app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+app.mount("/static", static_assets, name="static")
 
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request, all: bool = False):
-    sessions = list_sessions(show_all=all)
+    conversations = list_conversations(show_all=all)
 
-    display_sessions = []
-    for s in sessions:
+    display_conversations = []
+    for s in conversations:
         s_dict = s.model_dump()
 
         # Shorten directory
@@ -60,13 +57,13 @@ async def dashboard(request: Request, all: bool = False):
 
         s_dict["updated_formatted"] = format_timestamp(s.time_updated)
         s_dict["directory_short"] = dir_short
-        display_sessions.append(s_dict)
+        display_conversations.append(s_dict)
 
     return templates.TemplateResponse(
         "dashboard.html",
         {
             "request": request,
-            "sessions": display_sessions,
+            "conversations": display_conversations,
             "show_all": all,
         },
     )
@@ -79,8 +76,8 @@ async def api_search(
     limit: int = Query(50, ge=1, le=200, description="Max results"),
     regex: bool = Query(False, description="Use regex search instead of plaintext"),
 ):
-    """Search sessions using full-text search or regex."""
-    results = search_sessions(query=q, directory=directory, limit=limit, regex=regex)
+    """Search conversations using full-text search or regex."""
+    results = search_conversations(query=q, directory=directory, limit=limit, regex=regex)
     return JSONResponse(
         content=[r.model_dump() for r in results],
     )
@@ -96,75 +93,44 @@ async def api_directories():
 @app.post("/api/sync")
 async def api_sync():
     """Trigger an incremental sync of the search index from the source database."""
-    await run_in_threadpool(_sync_search_index)
+    await run_in_threadpool(sync_search_index)
     return JSONResponse(content={"status": "ok"})
 
 
-@app.post("/api/session/{session_id}/archive")
-async def api_archive_session(session_id: str):
-    """Archive a session (soft delete)."""
-    success = set_session_archived(session_id, archived=True)
-    if not success:
-        raise HTTPException(status_code=404, detail="Session not found in index")
-    return JSONResponse(content={"status": "archived", "session_id": session_id})
-
-
-@app.post("/api/session/{session_id}/unarchive")
-async def api_unarchive_session(session_id: str):
-    """Unarchive a session."""
-    success = set_session_archived(session_id, archived=False)
-    if not success:
-        raise HTTPException(status_code=404, detail="Session not found in index")
-    return JSONResponse(content={"status": "unarchived", "session_id": session_id})
-
-
-@app.get("/api/session/{session_id}/archived")
-async def api_session_archived_status(session_id: str):
-    """Check if a session is archived."""
-    archived = is_session_archived(session_id)
-    return JSONResponse(content={"session_id": session_id, "archived": archived})
-
-
-@app.get("/api/session/{session_id}/override", response_model=SessionOverrideRead)
-async def api_get_session_override(session_id: str):
-    """Get user-defined overrides for a session.
-
-    Returns the override row if one exists, or default (all-None) values if not.
-    """
-    row = get_session_override(session_id)
-    if row is None:
-        return SessionOverrideRead(session_id=session_id)
-    return SessionOverrideRead.model_validate(row)
-
-
-@app.patch("/api/session/{session_id}/override", response_model=SessionOverrideRead)
-async def api_patch_session_override(session_id: str, body: SessionOverrideWrite):
-    """Create or update overrides for a session.
-
-    Only fields included in the request body are changed.  Pass ``null`` for a
-    field to clear that override (reverting to the upstream value).
-    """
-    row = set_session_override(
-        session_id=session_id,
-        **{k: v for k, v in body.model_dump(exclude_unset=False).items()},
+@app.post("/api/conversation/{conversation_id}/archive")
+async def api_archive_conversation(conversation_id: str):
+    """Archive a conversation (soft delete)."""
+    set_conversation_archived(conversation_id, archived=True)
+    return JSONResponse(
+        content={"status": "archived", "conversation_id": conversation_id}
     )
-    return SessionOverrideRead.model_validate(row)
 
 
-@app.delete("/api/session/{session_id}/override", status_code=204)
-async def api_delete_session_override(session_id: str):
-    """Remove all overrides for a session, reverting to upstream values."""
-    delete_session_override(session_id)
-    return None
+@app.post("/api/conversation/{conversation_id}/unarchive")
+async def api_unarchive_conversation(conversation_id: str):
+    """Unarchive a conversation."""
+    set_conversation_archived(conversation_id, archived=False)
+    return JSONResponse(
+        content={"status": "unarchived", "conversation_id": conversation_id}
+    )
+
+
+@app.get("/api/conversation/{conversation_id}/archived")
+async def api_conversation_archived_status(conversation_id: str):
+    """Check if a conversation is archived."""
+    archived = is_conversation_archived(conversation_id)
+    return JSONResponse(
+        content={"conversation_id": conversation_id, "archived": archived}
+    )
 
 
 @app.get("/archived", response_class=HTMLResponse)
-async def archived_sessions(request: Request):
-    """View archived sessions."""
-    sessions = list_archived_sessions()
+async def archived_conversations(request: Request):
+    """View archived conversations."""
+    conversations = list_archived_conversations()
 
-    display_sessions = []
-    for s in sessions:
+    display_conversations = []
+    for s in conversations:
         s_dict = s.model_dump()
 
         # Shorten directory
@@ -175,38 +141,35 @@ async def archived_sessions(request: Request):
 
         s_dict["updated_formatted"] = format_timestamp(s.time_updated)
         s_dict["directory_short"] = dir_short
-        display_sessions.append(s_dict)
+        display_conversations.append(s_dict)
 
     return templates.TemplateResponse(
         "archived.html",
         {
             "request": request,
-            "sessions": display_sessions,
+            "conversations": display_conversations,
         },
     )
 
 
-@app.get("/session/{session_id}", response_class=HTMLResponse)
-async def view_session(request: Request, session_id: str):
-    try:
-        session_data = load_session_export(session_id)
+@app.get("/conversation/{conversation_id}", response_class=HTMLResponse)
+async def view_conversation(request: Request, conversation_id: str):
+    conversation_data = load_conversation_export(conversation_id)
+    if conversation_data is None:
+        raise HTTPException(status_code=404, detail="Conversation not found")
 
-        # We need to pass the JSON as a string to the template for injection
-        # Escape forward slashes to prevent </script> attacks/breakage
-        session_json = session_data.model_dump_json().replace("</", "<\\/")
+    # We need to pass the JSON as a string to the template for injection
+    # Escape forward slashes to prevent </script> attacks/breakage
+    conversation_json = conversation_data.model_dump_json().replace("</", "<\\/")
 
-        return templates.TemplateResponse(
-            "session.html",
-            {
-                "request": request,
-                "session": session_data,
-                "session_json": session_json,
-            },
-        )
-    except ValueError:
-        raise HTTPException(status_code=404, detail="Session not found")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    return templates.TemplateResponse(
+        "conversation.html",
+        {
+            "request": request,
+            "conversation": conversation_data,
+            "conversation_json": conversation_json,
+        },
+    )
 
 
 if __name__ == "__main__":

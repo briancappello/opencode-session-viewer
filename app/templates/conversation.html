@@ -3,7 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>{{ session.summary.title }} | OpenCode Session Viewer</title>
+    <title>
+      {{ conversation.summary.title }} | OpenCode Conversation Viewer
+    </title>
     <!-- Markdown & Syntax Highlighting -->
     <link
       rel="stylesheet"
@@ -14,28 +16,28 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.8/purify.min.js"></script>
     <!-- Application CSS -->
     <link rel="stylesheet" href="/static/css/base.css" />
-    <link rel="stylesheet" href="/static/css/session.css" />
+    <link rel="stylesheet" href="/static/css/conversation.css" />
   </head>
   <body>
     <!-- prettier-ignore-start -->
-    <script id="session-data" type="application/json">{{ session_json | safe }}</script>
+    <script id="conversation-data" type="application/json">{{ conversation_json | safe }}</script>
     <!-- prettier-ignore-end -->
 
     <nav class="top-navbar" id="topNavbar">
       <a
         href="/"
         class="back-link navbar-back"
-        title="Back to sessions list"
+        title="Back to conversations list"
         onclick="if (history.length > 1) { event.preventDefault(); history.back(); }"
         >←</a
       >
-      <span class="navbar-title">{{ session.summary.title }}</span>
+      <span class="navbar-title">{{ conversation.summary.title }}</span>
       <div class="navbar-actions">
         <button
           class="archive-btn"
           id="archiveBtn"
           onclick="toggleArchive()"
-          title="Archive this session"
+          title="Archive this conversation"
         >
           Archive
         </button>
@@ -194,6 +196,6 @@
 
     <!-- Application JavaScript -->
     <script src="/static/js/base.js"></script>
-    <script src="/static/js/session.js"></script>
+    <script src="/static/js/conversation.js"></script>
   </body>
 </html>

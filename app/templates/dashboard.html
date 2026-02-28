@@ -3,16 +3,19 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>OpenCode Sessions</title>
+    <title>OpenCode Conversations</title>
     <link rel="stylesheet" href="/static/css/base.css" />
     <link rel="stylesheet" href="/static/css/dashboard.css" />
   </head>
   <body>
     <div class="container">
       <div class="header">
-        <div class="title">OpenCode Sessions</div>
+        <div class="title">OpenCode Conversations</div>
         <div class="controls">
-          <a href="/archived" class="toggle-btn" title="View archived sessions"
+          <a
+            href="/archived"
+            class="toggle-btn"
+            title="View archived conversations"
             >Archived</a
           >
           <a
@@ -36,7 +39,7 @@
           type="text"
           id="searchInput"
           class="search-input"
-          placeholder="Search session contents..."
+          placeholder="Search conversation contents..."
         />
         <select id="directorySelect" class="directory-select">
           <option value="">All directories</option>
@@ -62,37 +65,45 @@
         <span id="searchResultsCount"></span>
       </div>
 
-      <div class="session-list" id="sessionList">
-        {% for session in sessions %}
-          <div class="session-item" data-session-id="{{ session.id }}">
-            <a href="/session/{{ session.id }}" class="session-item-link">
-              <div class="session-header">
-                <div class="session-title">
-                  {{ session.title or "Untitled" }}
+      <div class="conversation-list" id="conversationList">
+        {% for conversation in conversations %}
+          <div
+            class="conversation-item"
+            data-conversation-id="{{ conversation.id }}"
+          >
+            <a
+              href="/conversation/{{ conversation.id }}"
+              class="conversation-item-link"
+            >
+              <div class="conversation-header">
+                <div class="conversation-title">
+                  {{ conversation.title or "Untitled" }}
                 </div>
-                <div class="session-time">{{ session.updated_formatted }}</div>
+                <div class="conversation-time">
+                  {{ conversation.updated_formatted }}
+                </div>
               </div>
-              <div class="session-meta">
+              <div class="conversation-meta">
                 <div class="meta-item">
                   <span>📂</span>
-                  <span class="directory" title="{{ session.directory }}"
-                    >{{ session.directory_short }}</span
+                  <span class="directory" title="{{ conversation.directory }}"
+                    >{{ conversation.directory_short }}</span
                   >
                 </div>
-                {% if session.model %}
+                {% if conversation.model %}
                   <div class="meta-item">
                     <span>🤖</span>
-                    <span>{{ session.model }}</span>
+                    <span>{{ conversation.model }}</span>
                   </div>
                 {% endif %}
                 <div
-                  class="meta-item session-id-copy"
-                  data-session-id="{{ session.id }}"
-                  onclick="copySessionCommand(this, event)"
+                  class="meta-item conversation-id-copy"
+                  data-conversation-id="{{ conversation.id }}"
+                  onclick="copyConversationCommand(this, event)"
                   title="Click to copy opencode command"
                 >
                   <span style="color: var(--text-tertiary)"
-                    >ID: {{ session.id }}</span
+                    >ID: {{ conversation.id }}</span
                   >
                 </div>
               </div>
@@ -100,12 +111,12 @@
             <a
               href="#"
               class="archive-link"
-              onclick="archiveSession('{{ session.id }}', event)"
+              onclick="archiveConversation('{{ conversation.id }}', event)"
               >Archive</a
             >
           </div>
         {% else %}
-          <div class="empty-state">No sessions found.</div>
+          <div class="empty-state">No conversations found.</div>
         {% endfor %}
       </div>
     </div>

@@ -1,38 +1,41 @@
 """
-Sync service for copying data from OpenCode source DB to the search index.
+Sync service for copying data from the upstream OpenCode DB to the search index.
 
-Performs incremental sync based on session time_updated timestamps.
-Only user and assistant text content is indexed for search.
+Performs incremental sync based on conversation (upstream: session) time_updated
+timestamps. Only user and assistant text content is indexed for search.
+
+Archived state is NOT managed here — it lives in db.py (.db) so that a full
+index rebuild never loses user intent.
 """
 
 import sys
 import time
 
-from pathlib import Path
 from typing import Optional
 
 from sqlalchemy import delete, select
 
-from app.db import MessageModel, PartModel, SessionModel, get_db_session
-from app.search_db import (
-    PartIndex,
-    SessionIndex,
-    SyncMetadata,
-    get_archived_session_ids,
+from app.config import Config
+from app.db import ensure_conversation_exists
+from app.db_search import (
+    SearchConversationIndex,
+    SearchPartIndex,
+    SearchSyncMetadata,
     get_search_session,
     init_search_db,
 )
-
-
-def get_source_db_path() -> Path:
-    """Get the OpenCode source database path."""
-    return Path.home() / ".local/share/opencode/opencode.db"
+from app.db_upstream import (
+    UpstreamMessage,
+    UpstreamPart,
+    UpstreamSession,
+    get_upstream_session,
+)
 
 
 def get_last_sync_time(search_db) -> Optional[int]:
     """Get the last sync timestamp from metadata."""
     result = search_db.execute(
-        select(SyncMetadata).where(SyncMetadata.key == "last_sync_time")
+        select(SearchSyncMetadata).where(SearchSyncMetadata.key == "last_sync_time")
     ).scalar_one_or_none()
     if result:
         return int(result.value)
@@ -42,16 +45,16 @@ def get_last_sync_time(search_db) -> Optional[int]:
 def set_last_sync_time(search_db, timestamp: int):
     """Update the last sync timestamp."""
     existing = search_db.execute(
-        select(SyncMetadata).where(SyncMetadata.key == "last_sync_time")
+        select(SearchSyncMetadata).where(SearchSyncMetadata.key == "last_sync_time")
     ).scalar_one_or_none()
 
     if existing:
         existing.value = str(timestamp)
     else:
-        search_db.add(SyncMetadata(key="last_sync_time", value=str(timestamp)))
+        search_db.add(SearchSyncMetadata(key="last_sync_time", value=str(timestamp)))
 
 
-def extract_text_from_part(part: PartModel) -> Optional[str]:
+def extract_text_from_part(part: UpstreamPart) -> Optional[str]:
     """Extract searchable text content from a part.
 
     Only extracts text from 'text' type parts (user/assistant messages).
@@ -59,48 +62,47 @@ def extract_text_from_part(part: PartModel) -> Optional[str]:
     """
     if part.type != "text":
         return None
-
     return part.text
 
 
-def sync_session(
-    source_db, search_db, session: SessionModel, archived_ids: set[str] | None = None
-):
-    """Sync a single session and its parts to the search index.
+def sync_conversation(source_db, search_db, upstream_conv: UpstreamSession):
+    """Sync a single upstream conversation and its parts to the search index.
 
     Args:
-        source_db: Source database session
-        search_db: Search index database session
-        session: Session model to sync
-        archived_ids: Set of session IDs that should be marked as archived
-                     (used during full rebuild to preserve archived status)
+        source_db: SQLAlchemy session for the upstream (read-only) database
+        search_db: SQLAlchemy session for the search index database
+        upstream_conv: The upstream UpstreamSession record to sync
     """
-    # Upsert session index, preserving archived status
-    existing_session = search_db.get(SessionIndex, session.id)
-    if existing_session:
-        # Update existing - preserve archived status
-        existing_session.directory = session.directory
-        existing_session.title = session.title
-        existing_session.time_updated = session.time_updated
+    # Ensure a Conversation row exists in db.py (the canonical root).
+    # This is an insert-or-ignore — user fields (title, slug, archived) are never touched.
+    ensure_conversation_exists(upstream_conv.id)
+
+    # Upsert conversation into the search index (archived state lives in db.py, not here)
+    existing = search_db.get(SearchConversationIndex, upstream_conv.id)
+    if existing:
+        existing.directory = upstream_conv.directory
+        existing.title = upstream_conv.title
+        existing.time_updated = upstream_conv.time_updated
     else:
-        # New session - check if it should be archived (for rebuild scenario)
-        is_archived = archived_ids is not None and session.id in archived_ids
         search_db.add(
-            SessionIndex(
-                id=session.id,
-                directory=session.directory,
-                title=session.title,
-                time_updated=session.time_updated,
-                archived=is_archived,
+            SearchConversationIndex(
+                id=upstream_conv.id,
+                directory=upstream_conv.directory,
+                title=upstream_conv.title,
+                time_updated=upstream_conv.time_updated,
             )
         )
 
-    # Delete existing parts for this session (will be re-indexed)
-    search_db.execute(delete(PartIndex).where(PartIndex.session_id == session.id))
+    # Delete existing parts for this conversation (will be re-indexed)
+    search_db.execute(
+        delete(SearchPartIndex).where(
+            SearchPartIndex.upstream_session_id == upstream_conv.id
+        )
+    )
 
-    # Get all messages and parts for this session
+    # Get all messages and parts for this conversation
     messages = source_db.scalars(
-        select(MessageModel).where(MessageModel.session_id == session.id)
+        select(UpstreamMessage).where(UpstreamMessage.session_id == upstream_conv.id)
     ).all()
 
     parts_indexed = 0
@@ -109,9 +111,8 @@ def sync_session(
         if role not in ("user", "assistant"):
             continue
 
-        # Get parts for this message
         parts = source_db.scalars(
-            select(PartModel).where(PartModel.message_id == message.id)
+            select(UpstreamPart).where(UpstreamPart.message_id == message.id)
         ).all()
 
         for part in parts:
@@ -120,9 +121,9 @@ def sync_session(
                 continue
 
             search_db.add(
-                PartIndex(
+                SearchPartIndex(
                     id=part.id,
-                    session_id=session.id,
+                    upstream_session_id=upstream_conv.id,
                     message_id=message.id,
                     role=role,
                     content=text_content,
@@ -134,42 +135,39 @@ def sync_session(
     return parts_indexed
 
 
-def sync_search_index(
-    force_full: bool = False, preserved_archived_ids: set[str] | None = None
-):
-    """Sync the search index from the source database.
+def sync_search_index(force_full: bool = False):
+    """Sync the search index from the upstream source database.
 
     Args:
         force_full: If True, perform a full rebuild instead of incremental sync.
-        preserved_archived_ids: Set of session IDs to mark as archived (for rebuild).
     """
-    source_path = get_source_db_path()
-    if not source_path.exists():
-        print("Source database not found, skipping sync", file=sys.stderr)
+    if not Config.OPENCODE_DB_PATH.exists():
+        print("Upstream database not found, skipping sync", file=sys.stderr)
         return
 
     # Initialize search database (creates tables if needed)
     init_search_db()
 
     start_time = time.time()
-    sessions_synced = 0
+    conversations_synced = 0
     parts_indexed = 0
 
-    with get_db_session(source_path) as source_db:
+    with get_upstream_session() as source_db:
         with get_search_session() as search_db:
             last_sync = None if force_full else get_last_sync_time(search_db)
 
-            # Get sessions to sync
             if last_sync:
-                # Incremental: only sessions updated since last sync
-                stmt = select(SessionModel).where(SessionModel.time_updated > last_sync)
+                # Incremental: only conversations updated since last sync
+                stmt = select(UpstreamSession).where(
+                    UpstreamSession.time_updated > last_sync
+                )
             else:
-                # Full sync: all sessions
-                stmt = select(SessionModel)
+                # Full sync: all conversations
+                stmt = select(UpstreamSession)
 
-            sessions = source_db.scalars(stmt).all()
+            upstream_conversations = source_db.scalars(stmt).all()
 
-            if not sessions:
+            if not upstream_conversations:
                 elapsed = time.time() - start_time
                 print(
                     f"Search index up to date (checked in {elapsed:.2f}s)",
@@ -177,12 +175,9 @@ def sync_search_index(
                 )
                 return
 
-            # Sync each session
-            for session in sessions:
-                parts_count = sync_session(
-                    source_db, search_db, session, preserved_archived_ids
-                )
-                sessions_synced += 1
+            for upstream_conv in upstream_conversations:
+                parts_count = sync_conversation(source_db, search_db, upstream_conv)
+                conversations_synced += 1
                 parts_indexed += parts_count
 
             # Update sync timestamp to current time (in milliseconds)
@@ -193,26 +188,19 @@ def sync_search_index(
 
     elapsed = time.time() - start_time
     print(
-        f"Search index synced: {sessions_synced} sessions, "
+        f"Search index synced: {conversations_synced} conversations, "
         f"{parts_indexed} parts indexed in {elapsed:.2f}s",
         file=sys.stderr,
     )
 
 
 def rebuild_search_index():
-    """Completely rebuild the search index from scratch, preserving archived status."""
-    from app.search_db import SEARCH_DB_PATH
+    """Completely rebuild the search index from scratch.
 
-    # Save archived session IDs before deleting DB
-    archived_ids = set()
-    if SEARCH_DB_PATH.exists():
-        try:
-            archived_ids = get_archived_session_ids()
-        except Exception:
-            pass  # DB might be corrupted, just proceed
+    Archived state is preserved automatically because it lives in db.py, not here.
+    """
 
-        # Delete existing database
-        SEARCH_DB_PATH.unlink()
+    if Config.SEARCH_DB_PATH.exists():
+        Config.SEARCH_DB_PATH.unlink()
 
-    # Perform full sync with preserved archived IDs
-    sync_search_index(force_full=True, preserved_archived_ids=archived_ids)
+    sync_search_index(force_full=True)

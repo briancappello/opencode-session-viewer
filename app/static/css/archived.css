@@ -51,17 +51,17 @@ body {
 }
 
 /* =============================================================================
-   Session list items (archived-specific layout)
+   Conversation list items (archived-specific layout)
    ============================================================================= */
 
-.session-item {
+.conversation-item {
   display: flex;
   align-items: center;
   gap: 16px;
   padding: 16px;
 }
 
-.session-content {
+.conversation-content {
   flex: 1;
   text-decoration: none;
   color: inherit;

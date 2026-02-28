@@ -9,12 +9,12 @@ const directorySelect = document.getElementById("directorySelect");
 const regexCheckbox = document.getElementById("regexCheckbox");
 const searchBtn = document.getElementById("searchBtn");
 const clearBtn = document.getElementById("clearBtn");
-const sessionList = document.getElementById("sessionList");
+const conversationList = document.getElementById("conversationList");
 const searchResultsHeader = document.getElementById("searchResultsHeader");
 const searchResultsCount = document.getElementById("searchResultsCount");
 
-// Snapshot of the server-rendered session list, used when clearing search.
-const originalContent = sessionList.innerHTML;
+// Snapshot of the server-rendered conversation list, used when clearing search.
+const originalContent = conversationList.innerHTML;
 
 // =============================================================================
 // Directories
@@ -44,7 +44,7 @@ async function loadDirectories() {
 regexCheckbox.addEventListener("change", () => {
   searchInput.placeholder = regexCheckbox.checked
     ? "Search with regex pattern..."
-    : "Search session contents...";
+    : "Search conversation contents...";
 });
 
 searchInput.addEventListener("keypress", (e) => {
@@ -75,7 +75,7 @@ async function performSearch() {
     displaySearchResults(results, query, useRegex);
   } catch (e) {
     console.error("Search failed:", e);
-    sessionList.innerHTML =
+    conversationList.innerHTML =
       '<div class="empty-state">Search failed. Please try again.</div>';
   } finally {
     searchBtn.disabled = false;
@@ -94,17 +94,17 @@ function displaySearchResults(results, query, useRegex = false) {
   searchResultsHeader.classList.remove("hidden");
 
   const searchType = useRegex ? "regex" : "plaintext";
-  searchResultsCount.textContent = `Found ${results.length} session${results.length !== 1 ? "s" : ""} matching "${query}" (${searchType})`;
+  searchResultsCount.textContent = `Found ${results.length} conversation${results.length !== 1 ? "s" : ""} matching "${query}" (${searchType})`;
 
   if (results.length === 0) {
     const hint = useRegex
       ? "Check your regex pattern syntax."
       : "Try different search terms.";
-    sessionList.innerHTML = `<div class="empty-state">No sessions found matching your search. ${hint}</div>`;
+    conversationList.innerHTML = `<div class="empty-state">No conversations found matching your search. ${hint}</div>`;
     return;
   }
 
-  sessionList.innerHTML = results
+  conversationList.innerHTML = results
     .map((result) => {
       const title = result.title || "Untitled";
       const directory = result.directory || "";
@@ -134,29 +134,29 @@ function displaySearchResults(results, query, useRegex = false) {
           ? `<div style="font-size: 12px; color: var(--text-tertiary); margin-top: 8px;">+${result.total_matches - result.matches.length} more matches</div>`
           : "";
 
-      let sessionUrl = `/session/${result.session_id}?q=${encodeURIComponent(query)}`;
-      if (useRegex) sessionUrl += "&regex=true";
+      let conversationUrl = `/conversation/${result.conversation_id}?q=${encodeURIComponent(query)}`;
+      if (useRegex) conversationUrl += "&regex=true";
 
       return `
-        <div class="session-item" data-session-id="${result.session_id}">
-          <a href="${sessionUrl}" class="session-item-link">
-            <div class="session-header">
-              <div class="session-title">${escapeHtml(title)}</div>
-              <div class="session-time">${timeFormatted}</div>
+        <div class="conversation-item" data-conversation-id="${result.conversation_id}">
+          <a href="${conversationUrl}" class="conversation-item-link">
+            <div class="conversation-header">
+              <div class="conversation-title">${escapeHtml(title)}</div>
+              <div class="conversation-time">${timeFormatted}</div>
             </div>
-            <div class="session-meta">
+            <div class="conversation-meta">
               <div class="meta-item">
                 <span>📂</span>
                 <span class="directory" title="${escapeHtml(directory)}">${escapeHtml(dirShort)}</span>
               </div>
-              <div class="meta-item session-id-copy" data-session-id="${result.session_id}" onclick="copySessionCommand(this, event)" title="Click to copy opencode command">
-                <span style="color: var(--text-tertiary)">ID: ${result.session_id}</span>
+              <div class="meta-item conversation-id-copy" data-conversation-id="${result.conversation_id}" onclick="copyConversationCommand(this, event)" title="Click to copy opencode command">
+                <span style="color: var(--text-tertiary)">ID: ${result.conversation_id}</span>
               </div>
             </div>
             ${matchesHtml}
             ${moreMatches}
           </a>
-          <a href="#" class="archive-link" onclick="archiveSession('${result.session_id}', event)">Archive</a>
+          <a href="#" class="archive-link" onclick="archiveConversation('${result.conversation_id}', event)">Archive</a>
         </div>
       `;
     })
@@ -167,22 +167,22 @@ function clearSearch() {
   searchInput.value = "";
   directorySelect.value = "";
   regexCheckbox.checked = false;
-  searchInput.placeholder = "Search session contents...";
-  sessionList.innerHTML = originalContent;
+  searchInput.placeholder = "Search conversation contents...";
+  conversationList.innerHTML = originalContent;
   clearBtn.classList.add("hidden");
   searchResultsHeader.classList.add("hidden");
 }
 
 // =============================================================================
-// Copy session command
+// Copy conversation command
 // =============================================================================
 
-function copySessionCommand(el, event) {
+function copyConversationCommand(el, event) {
   event.preventDefault();
   event.stopPropagation();
 
-  const sessionId = el.dataset.sessionId;
-  navigator.clipboard.writeText(`opencode -s ${sessionId}`).then(() => {
+  const conversationId = el.dataset.conversationId;
+  navigator.clipboard.writeText(`opencode -s ${conversationId}`).then(() => {
     el.classList.add("copied");
     const span = el.querySelector("span[style]");
     const original = span.textContent;
@@ -198,7 +198,7 @@ function copySessionCommand(el, event) {
 // Archive
 // =============================================================================
 
-async function archiveSession(sessionId, event) {
+async function archiveConversation(conversationId, event) {
   event.preventDefault();
   event.stopPropagation();
 
@@ -207,12 +207,15 @@ async function archiveSession(sessionId, event) {
   link.style.pointerEvents = "none";
 
   try {
-    const response = await fetch(`/api/session/${sessionId}/archive`, {
-      method: "POST",
-    });
+    const response = await fetch(
+      `/api/conversation/${conversationId}/archive`,
+      {
+        method: "POST",
+      },
+    );
 
     if (response.ok) {
-      const item = link.closest(".session-item");
+      const item = link.closest(".conversation-item");
       item.style.opacity = "0";
       item.style.transform = "translateX(-20px)";
       item.style.transition = "all 0.3s ease";
@@ -220,7 +223,7 @@ async function archiveSession(sessionId, event) {
     } else {
       link.textContent = "Archive";
       link.style.pointerEvents = "";
-      console.error("Failed to archive session");
+      console.error("Failed to archive conversation");
     }
   } catch (e) {
     link.textContent = "Archive";

@@ -1,137 +1,186 @@
-import json
+"""
+Extensions database for user-defined customizations.
 
-from pathlib import Path
-from typing import List, Optional
+Intentionally separate from search_index.db so that a full search index
+rebuild (which deletes that file) never touches user data.
 
-from sqlalchemy import ForeignKey, Integer, String, Text, create_engine
-from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship
+This is the "parent" database: it owns all user-intent state including
+archived status (so a search index rebuild never loses that data).
+"""
+
+from typing import Optional
+
+from sqlalchemy import Boolean, String, UniqueConstraint, create_engine, event, text
+from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
+
+from app.config import Config
+
+
+def get_db_session() -> Session:
+    """Create a new SQLAlchemy session for the database."""
+    return Session(get_db_engine())
 
 
 class Base(DeclarativeBase):
     pass
 
 
-class SessionModel(Base):
-    __tablename__ = "session"
+class Conversation(Base):
+    """A conversation, keyed by the upstream session ID.
 
-    id: Mapped[str] = mapped_column(String, primary_key=True)
-    project_id: Mapped[Optional[str]] = mapped_column(String)
-    parent_id: Mapped[Optional[str]] = mapped_column(String)
-    slug: Mapped[Optional[str]] = mapped_column(String)
-    directory: Mapped[Optional[str]] = mapped_column(String)
-    title: Mapped[Optional[str]] = mapped_column(String)
-    version: Mapped[Optional[str]] = mapped_column(String)
+    Every upstream session gets a corresponding row here during sync, making
+    this table the canonical root for all conversation queries.  User-controlled
+    extension fields (title, slug) and archived state layer on top; sync only
+    ever inserts new rows and never touches those fields on existing ones.
+    """
 
-    # Summaries
-    summary_additions: Mapped[Optional[int]] = mapped_column(Integer)
-    summary_deletions: Mapped[Optional[int]] = mapped_column(Integer)
-    summary_files: Mapped[Optional[int]] = mapped_column(Integer)
+    __tablename__ = "conversation"
+    __table_args__ = (UniqueConstraint("slug", name="uq_conversation_slug"),)
 
-    # Times (milliseconds timestamp)
-    time_created: Mapped[Optional[int]] = mapped_column(Integer)
-    time_updated: Mapped[Optional[int]] = mapped_column(Integer)
+    # Primary key — mirrors the upstream session.id.
+    upstream_session_id: Mapped[str] = mapped_column(String, primary_key=True)
 
-    # Relationships
-    messages: Mapped[List["MessageModel"]] = relationship(
-        "MessageModel", back_populates="session", order_by="MessageModel.time_created"
-    )
+    # Nullable extension fields — None means "fall back to upstream value"
+    title: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    slug: Mapped[Optional[str]] = mapped_column(String, nullable=True, index=True)
+
+    # Archived state lives here (not in the ephemeral search index) so that a
+    # full index rebuild never loses user-intent data.
+    archived: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
 
-class MessageModel(Base):
-    __tablename__ = "message"
+def get_db_engine():
+    """Create engine for the database."""
+    engine = create_engine(f"sqlite:///{Config.MAIN_DB_PATH}")
 
-    id: Mapped[str] = mapped_column(String, primary_key=True)
-    session_id: Mapped[str] = mapped_column(ForeignKey("session.id"))
-    data: Mapped[str] = mapped_column(Text)  # Stores JSON string
-    time_created: Mapped[Optional[int]] = mapped_column(Integer)
+    @event.listens_for(engine, "connect")
+    def set_pragma(dbapi_connection, _connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
 
-    session: Mapped["SessionModel"] = relationship(
-        "SessionModel", back_populates="messages"
-    )
-    parts: Mapped[List["PartModel"]] = relationship(
-        "PartModel", back_populates="message", order_by="PartModel.time_created"
-    )
-
-    @property
-    def _json_data(self) -> dict:
-        try:
-            return json.loads(self.data)
-        except (ValueError, TypeError):
-            return {}
-
-    @property
-    def role(self) -> str:
-        return self._json_data.get("role", "unknown")
-
-    @property
-    def agent(self) -> Optional[str]:
-        return self._json_data.get("agent")
-
-    @property
-    def model(self) -> Optional[dict]:
-        return self._json_data.get("model")
-
-    @property
-    def modelID(self) -> Optional[str]:
-        return self._json_data.get("modelID")
-
-    @property
-    def summary(self) -> Optional[dict]:
-        summary_value = self._json_data.get("summary")
-        # Handle legacy boolean summary values (e.g., summary: true)
-        # Convert to None so Pydantic validation succeeds
-        if isinstance(summary_value, bool):
-            return None
-        return summary_value
+    return engine
 
 
-class PartModel(Base):
-    __tablename__ = "part"
-
-    id: Mapped[str] = mapped_column(String, primary_key=True)
-    message_id: Mapped[str] = mapped_column(ForeignKey("message.id"))
-    data: Mapped[str] = mapped_column(Text)  # Stores JSON string
-    time_created: Mapped[Optional[int]] = mapped_column(Integer)
-
-    message: Mapped["MessageModel"] = relationship("MessageModel", back_populates="parts")
-
-    @property
-    def _json_data(self) -> dict:
-        try:
-            return json.loads(self.data)
-        except (ValueError, TypeError):
-            return {}
-
-    @property
-    def type(self) -> str:
-        return self._json_data.get("type", "unknown")
-
-    @property
-    def text(self) -> Optional[str]:
-        return self._json_data.get("text")
-
-    @property
-    def tool(self) -> Optional[str]:
-        return self._json_data.get("tool")
-
-    @property
-    def callID(self) -> Optional[str]:
-        return self._json_data.get("callID")
-
-    @property
-    def state(self) -> Optional[dict]:
-        return self._json_data.get("state")
-
-    @property
-    def tokens(self) -> Optional[dict]:
-        return self._json_data.get("tokens")
-
-    @property
-    def synthetic(self) -> Optional[bool]:
-        return self._json_data.get("synthetic")
+def init_db():
+    """Create tables if they don't exist, and run any pending migrations."""
+    Config.DATA_DIR.mkdir(parents=True, exist_ok=True)
+    engine = get_db_engine()
+    Base.metadata.create_all(engine)
 
 
-def get_db_session(db_path: Path) -> Session:
-    """Create a new SQLAlchemy session for the given database path."""
-    engine = create_engine(f"sqlite:///{db_path}?mode=ro")
-    return Session(engine)
+# ---------------------------------------------------------------------------
+# Conversation CRUD helpers
+# ---------------------------------------------------------------------------
+
+
+def get_conversation(upstream_session_id: str) -> Optional[Conversation]:
+    """Return the Conversation row for the given upstream session ID, or None."""
+    with get_db_session() as db:
+        return db.get(Conversation, upstream_session_id)
+
+
+def ensure_conversation_exists(upstream_session_id: str) -> None:
+    """Guarantee a Conversation row exists for the given upstream session ID.
+
+    Safe to call on every sync — if the row already exists, nothing is changed
+    (user-controlled fields like title, slug, and archived are never touched).
+    """
+    with get_db_session() as db:
+        if db.get(Conversation, upstream_session_id) is None:
+            db.add(Conversation(upstream_session_id=upstream_session_id))
+            db.commit()
+
+
+def upsert_conversation(
+    upstream_session_id: str,
+    title: Optional[str] = ...,  # type: ignore[assignment]
+    slug: Optional[str] = ...,  # type: ignore[assignment]
+) -> Conversation:
+    """Upsert extension fields for a conversation.
+
+    Pass a value to update that field; omit (or pass Ellipsis) to leave it
+    unchanged.  Passing ``None`` explicitly clears the extension for that field,
+    reverting it to the upstream value.
+
+    Returns the updated (or newly created) Conversation row.
+    """
+    with get_db_session() as db:
+        row = db.get(Conversation, upstream_session_id)
+        if row is None:
+            row = Conversation(upstream_session_id=upstream_session_id)
+            db.add(row)
+
+        if title is not ...:
+            row.title = title
+        if slug is not ...:
+            row.slug = slug
+
+        db.commit()
+        db.refresh(row)
+        return row
+
+
+def delete_conversation(upstream_session_id: str) -> bool:
+    """Remove all extensions for a conversation.
+
+    Returns True if a row was deleted, False if none existed.
+    """
+    with get_db_session() as db:
+        row = db.get(Conversation, upstream_session_id)
+        if row is None:
+            return False
+        db.delete(row)
+        db.commit()
+        return True
+
+
+def get_conversation_by_slug(slug: str) -> Optional[Conversation]:
+    """Resolve a slug to its Conversation row, or None if not found."""
+    from sqlalchemy import select
+
+    with get_db_session() as db:
+        return db.execute(
+            select(Conversation).where(Conversation.slug == slug)
+        ).scalar_one_or_none()
+
+
+# ---------------------------------------------------------------------------
+# Archived state helpers
+# ---------------------------------------------------------------------------
+
+
+def set_conversation_archived(upstream_session_id: str, archived: bool) -> bool:
+    """Set the archived status of a conversation.
+
+    Creates the Conversation row if it doesn't already exist.
+    Returns True always (operation always succeeds).
+    """
+    with get_db_session() as db:
+        row = db.get(Conversation, upstream_session_id)
+        if row is None:
+            row = Conversation(upstream_session_id=upstream_session_id, archived=archived)
+            db.add(row)
+        else:
+            row.archived = archived
+        db.commit()
+        return True
+
+
+def is_conversation_archived(upstream_session_id: str) -> bool:
+    """Check if a conversation is archived."""
+    with get_db_session() as db:
+        row = db.get(Conversation, upstream_session_id)
+        return row.archived if row else False
+
+
+def get_archived_conversation_ids() -> set[str]:
+    """Get all archived conversation IDs (as upstream session IDs)."""
+    from sqlalchemy import select
+
+    with get_db_session() as db:
+        result = db.execute(
+            select(Conversation.upstream_session_id).where(Conversation.archived == True)  # noqa: E712
+        )
+        return {row[0] for row in result.fetchall()}

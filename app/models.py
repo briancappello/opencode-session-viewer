@@ -9,14 +9,16 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class TokenUsage(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     input: Optional[int] = 0
     output: Optional[int] = 0
     cache: Optional[Dict[str, int]] = None
 
-    model_config = ConfigDict(from_attributes=True)
-
 
 class GenericPart(BaseModel):
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
     id: Optional[str] = None
     type: str
     text: Optional[str] = None
@@ -26,24 +28,22 @@ class GenericPart(BaseModel):
     time_created: Optional[int] = None
     synthetic: Optional[bool] = None  # True for auto-generated parts (tool call echoes)
 
-    model_config = ConfigDict(from_attributes=True, extra="allow")
-
 
 # --- Message Models ---
 
 
 class MessageSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     title: Optional[str] = None
     diffs: Optional[List[Any]] = None
 
-    model_config = ConfigDict(from_attributes=True)
-
 
 class ModelInfo(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     providerID: Optional[str] = None
     modelID: Optional[str] = None
-
-    model_config = ConfigDict(from_attributes=True)
 
 
 class Message(BaseModel):
@@ -70,11 +70,13 @@ class Message(BaseModel):
         return "Unknown"
 
 
-# --- Session Models ---
+# --- Conversation Models ---
 
 
-class SessionSummary(BaseModel):
-    """Used for listing sessions."""
+class ConversationSummary(BaseModel):
+    """Used for listing conversations."""
+
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
     id: str
     title: Optional[str] = None
@@ -94,44 +96,22 @@ class SessionSummary(BaseModel):
 
     model: Optional[str] = "Unknown"
 
-    # User-defined overrides (None when not set)
-    human_id: Optional[str] = None
-
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+    # User-defined extensions (None when not set)
+    slug: Optional[str] = None
 
 
-class SessionExport(BaseModel):
-    """Full session export."""
+class ConversationExport(BaseModel):
+    """Full conversation export."""
 
-    summary: SessionSummary
+    summary: ConversationSummary
     messages: List[Message]
-
-
-# --- Override Models ---
-
-
-class SessionOverrideRead(BaseModel):
-    """Override values for a session (as returned by the API)."""
-
-    session_id: str
-    title: Optional[str] = None
-    human_id: Optional[str] = None
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class SessionOverrideWrite(BaseModel):
-    """Fields accepted when creating or updating a session override."""
-
-    title: Optional[str] = None
-    human_id: Optional[str] = None
 
 
 # --- Search Models ---
 
 
 class SearchMatch(BaseModel):
-    """A single search match within a session."""
+    """A single search match within a conversation."""
 
     part_id: str
     message_id: str
@@ -141,9 +121,9 @@ class SearchMatch(BaseModel):
 
 
 class SearchResult(BaseModel):
-    """Search result for a session."""
+    """Search result for a conversation."""
 
-    session_id: str
+    conversation_id: str
     title: Optional[str] = None
     directory: Optional[str] = None
     time_updated: Optional[int] = None
