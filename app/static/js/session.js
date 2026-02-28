@@ -78,6 +78,13 @@ function initSidebarResize() {
 }
 
 // Viz panel toggle functionality
+function setVizWidth(isCollapsed) {
+  document.documentElement.style.setProperty(
+    "--viz-width",
+    isCollapsed ? "44px" : "240px",
+  );
+}
+
 function toggleVizPanel() {
   const panel = document.getElementById("vizPanel");
   const toggle = document.getElementById("vizPanelToggle");
@@ -87,6 +94,7 @@ function toggleVizPanel() {
 
   toggle.title = isCollapsed ? "Expand stats panel" : "Hide stats panel";
   localStorage.setItem("vizPanelCollapsed", isCollapsed);
+  setVizWidth(isCollapsed);
 
   // Re-render sparkline after transition
   setTimeout(renderSparkline, 250);
@@ -102,6 +110,9 @@ function initVizPanel() {
   if (savedState === "false") {
     panel.classList.remove("collapsed");
     toggle.title = "Hide stats panel";
+    setVizWidth(false);
+  } else {
+    setVizWidth(true);
   }
 }
 

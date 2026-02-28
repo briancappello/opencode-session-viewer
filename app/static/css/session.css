@@ -15,7 +15,7 @@ body {
   position: fixed;
   top: 0;
   left: 0;
-  right: 0;
+  right: var(--viz-width, 44px);
   height: 44px;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-color);
@@ -25,7 +25,9 @@ body {
   padding: 0 14px;
   z-index: 100;
   transform: translateY(0);
-  transition: transform 0.25s ease;
+  transition:
+    transform 0.25s ease,
+    right 0.2s ease;
 }
 
 .top-navbar.navbar-hidden {
@@ -274,17 +276,18 @@ body {
    Main content area
    ============================================================================= */
 
-/* Wrapper containing the scroll container and viz panel */
+/* Wrapper containing the scroll container — viz panel is fixed */
 .main-wrapper {
   flex: 1;
-  display: flex;
   overflow: hidden;
-  position: relative;
+  margin-right: var(--viz-width, 44px);
+  transition: margin-right 0.2s ease;
 }
 
-/* Scrollable column — scrollbar appears at the far-right viewport edge */
+/* Scrollable column — scrollbar appears at the far-right edge of main-wrapper */
 .scroll-container {
-  flex: 1;
+  width: 100%;
+  height: 100%;
   overflow-y: auto;
   scroll-behavior: smooth;
   display: flex;
@@ -730,18 +733,18 @@ pre.tool-code code {
    ============================================================================= */
 
 .viz-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
   width: 240px;
   background: var(--bg-secondary);
   border-left: 1px solid var(--border-color);
-  flex-shrink: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   transition: width 0.2s ease;
-  height: 100%;
-  position: sticky;
-  top: 0;
-  align-self: flex-start;
+  z-index: 99;
 }
 
 .viz-panel.collapsed {
@@ -749,15 +752,10 @@ pre.tool-code code {
 }
 
 .viz-panel-header {
-  display: flex;
-  justify-content: flex-start;
-  padding: 12px;
-  flex-shrink: 0;
-}
-
-.viz-panel.collapsed .viz-panel-header {
-  justify-content: center;
-  padding: 12px 0;
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
 }
 
 .viz-panel-toggle {
@@ -783,6 +781,7 @@ pre.tool-code code {
   padding: 0 16px 16px 16px;
   flex: 1;
   overflow-y: auto;
+  margin-top: 44px; /* clear the absolutely-positioned toggle button */
 }
 
 .viz-panel.collapsed .viz-panel-content {

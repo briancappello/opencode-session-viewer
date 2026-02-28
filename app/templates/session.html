@@ -75,105 +75,103 @@
               <!-- Loading state removed as data is injected -->
             </div>
           </div>
-          <div class="viz-panel collapsed" id="vizPanel">
-            <div class="viz-panel-header">
-              <button
-                class="viz-panel-toggle"
-                id="vizPanelToggle"
-                onclick="toggleVizPanel()"
-                title="Expand stats panel"
+        </div>
+        <div class="viz-panel collapsed" id="vizPanel">
+          <div class="viz-panel-header">
+            <button
+              class="viz-panel-toggle"
+              id="vizPanelToggle"
+              onclick="toggleVizPanel()"
+              title="Expand stats panel"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
               >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 16 16"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.5"
-                >
-                  <rect x="1.5" y="1.5" width="13" height="13" rx="2" />
-                  <line x1="10.5" y1="1.5" x2="10.5" y2="14.5" />
-                </svg>
-              </button>
+                <rect x="1.5" y="1.5" width="13" height="13" rx="2" />
+                <line x1="10.5" y1="1.5" x2="10.5" y2="14.5" />
+              </svg>
+            </button>
+          </div>
+          <div class="viz-panel-content">
+            <div class="viz-section">
+              <div class="viz-title">Current Message Tokens</div>
+              <div class="current-tokens">
+                <div class="token-row">
+                  <span class="token-label">Input</span>
+                  <div class="token-bar-container">
+                    <div
+                      class="token-bar input"
+                      id="inputBar"
+                      style="width: 0%"
+                    ></div>
+                  </div>
+                  <span class="token-value" id="inputValue">0</span>
+                </div>
+                <div class="token-row">
+                  <span class="token-label">Output</span>
+                  <div class="token-bar-container">
+                    <div
+                      class="token-bar output"
+                      id="outputBar"
+                      style="width: 0%"
+                    ></div>
+                  </div>
+                  <span class="token-value" id="outputValue">0</span>
+                </div>
+                <div class="token-row">
+                  <span class="token-label">Cache</span>
+                  <div class="token-bar-container">
+                    <div
+                      class="token-bar cache"
+                      id="cacheBar"
+                      style="width: 0%"
+                    ></div>
+                  </div>
+                  <span class="token-value" id="cacheValue">0</span>
+                </div>
+              </div>
+              <div class="legend">
+                <div class="legend-item">
+                  <div class="legend-dot input"></div>
+                  Input
+                </div>
+                <div class="legend-item">
+                  <div class="legend-dot output"></div>
+                  Output
+                </div>
+                <div class="legend-item">
+                  <div class="legend-dot cache"></div>
+                  Cache
+                </div>
+              </div>
             </div>
-            <div class="viz-panel-content">
-              <div class="viz-section">
-                <div class="viz-title">Current Message Tokens</div>
-                <div class="current-tokens">
-                  <div class="token-row">
-                    <span class="token-label">Input</span>
-                    <div class="token-bar-container">
-                      <div
-                        class="token-bar input"
-                        id="inputBar"
-                        style="width: 0%"
-                      ></div>
-                    </div>
-                    <span class="token-value" id="inputValue">0</span>
-                  </div>
-                  <div class="token-row">
-                    <span class="token-label">Output</span>
-                    <div class="token-bar-container">
-                      <div
-                        class="token-bar output"
-                        id="outputBar"
-                        style="width: 0%"
-                      ></div>
-                    </div>
-                    <span class="token-value" id="outputValue">0</span>
-                  </div>
-                  <div class="token-row">
-                    <span class="token-label">Cache</span>
-                    <div class="token-bar-container">
-                      <div
-                        class="token-bar cache"
-                        id="cacheBar"
-                        style="width: 0%"
-                      ></div>
-                    </div>
-                    <span class="token-value" id="cacheValue">0</span>
-                  </div>
-                </div>
-                <div class="legend">
-                  <div class="legend-item">
-                    <div class="legend-dot input"></div>
-                    Input
-                  </div>
-                  <div class="legend-item">
-                    <div class="legend-dot output"></div>
-                    Output
-                  </div>
-                  <div class="legend-item">
-                    <div class="legend-dot cache"></div>
-                    Cache
-                  </div>
-                </div>
-              </div>
 
-              <div class="viz-section">
-                <div class="viz-title">Cache Read Over Time</div>
-                <div class="sparkline-container">
-                  <svg class="sparkline-svg" id="sparkline"></svg>
-                  <div class="sparkline-labels">
-                    <span>Start</span>
-                    <span>End</span>
-                  </div>
+            <div class="viz-section">
+              <div class="viz-title">Cache Read Over Time</div>
+              <div class="sparkline-container">
+                <svg class="sparkline-svg" id="sparkline"></svg>
+                <div class="sparkline-labels">
+                  <span>Start</span>
+                  <span>End</span>
                 </div>
               </div>
+            </div>
 
-              <div class="viz-section">
-                <div class="viz-title">Timeline Progress</div>
-                <div class="progress-bar-container">
-                  <div
-                    class="progress-bar"
-                    id="progressBar"
-                    style="width: 0%"
-                  ></div>
-                </div>
-                <div class="progress-label" id="progressLabel">
-                  Message 0 / 0
-                </div>
+            <div class="viz-section">
+              <div class="viz-title">Timeline Progress</div>
+              <div class="progress-bar-container">
+                <div
+                  class="progress-bar"
+                  id="progressBar"
+                  style="width: 0%"
+                ></div>
               </div>
+              <div class="progress-label" id="progressLabel">Message 0 / 0</div>
             </div>
           </div>
         </div>
