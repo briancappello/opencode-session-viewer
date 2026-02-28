@@ -149,6 +149,9 @@ function displaySearchResults(results, query, useRegex = false) {
                 <span>📂</span>
                 <span class="directory" title="${escapeHtml(directory)}">${escapeHtml(dirShort)}</span>
               </div>
+              <div class="meta-item session-id-copy" data-session-id="${result.session_id}" onclick="copySessionCommand(this, event)" title="Click to copy opencode command">
+                <span style="color: var(--text-tertiary)">ID: ${result.session_id}</span>
+              </div>
             </div>
             ${matchesHtml}
             ${moreMatches}
@@ -168,6 +171,27 @@ function clearSearch() {
   sessionList.innerHTML = originalContent;
   clearBtn.classList.add("hidden");
   searchResultsHeader.classList.add("hidden");
+}
+
+// =============================================================================
+// Copy session command
+// =============================================================================
+
+function copySessionCommand(el, event) {
+  event.preventDefault();
+  event.stopPropagation();
+
+  const sessionId = el.dataset.sessionId;
+  navigator.clipboard.writeText(`opencode -s ${sessionId}`).then(() => {
+    el.classList.add("copied");
+    const span = el.querySelector("span[style]");
+    const original = span.textContent;
+    span.textContent = "Copied!";
+    setTimeout(() => {
+      span.textContent = original;
+      el.classList.remove("copied");
+    }, 1500);
+  });
 }
 
 // =============================================================================

@@ -85,7 +85,12 @@
                     <span>{{ session.model }}</span>
                   </div>
                 {% endif %}
-                <div class="meta-item">
+                <div
+                  class="meta-item session-id-copy"
+                  data-session-id="{{ session.id }}"
+                  onclick="copySessionCommand(this, event)"
+                  title="Click to copy opencode command"
+                >
                   <span style="color: var(--text-tertiary)"
                     >ID: {{ session.id }}</span
                   >
