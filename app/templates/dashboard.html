@@ -1,548 +1,598 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>OpenCode Sessions</title>
     <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-        
-        :root {
-            --bg-primary: #ffffff;
-            --bg-secondary: #f7f6f3;
-            --bg-hover: #efefef;
-            --bg-selected: #e8e7e4;
-            --text-primary: #37352f;
-            --text-secondary: #787774;
-            --text-tertiary: #9b9a97;
-            --accent-blue: #2383e2;
-            --border-color: #e9e9e7;
-        }
-        
-        .dark {
-            --bg-primary: #191919;
-            --bg-secondary: #202020;
-            --bg-hover: #2f2f2f;
-            --bg-selected: #363636;
-            --text-primary: #e6e6e6;
-            --text-secondary: #9b9b9b;
-            --text-tertiary: #6b6b6b;
-            --border-color: #2f2f2f;
-        }
-        
-        body {
-            font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            line-height: 1.6;
-            font-size: 14px;
-            padding: 20px;
-        }
-        
-        .container {
-            max-width: 1000px;
-            margin: 0 auto;
-        }
-        
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 24px;
-            padding-bottom: 16px;
-            border-bottom: 1px solid var(--border-color);
-        }
-        
-        .title {
-            font-size: 20px;
-            font-weight: 600;
-        }
-        
-        .controls {
-            display: flex;
-            gap: 12px;
-            align-items: center;
-        }
-        
-        .toggle-btn {
-            background: none;
-            border: 1px solid var(--border-color);
-            color: var(--text-secondary);
-            padding: 6px 12px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 13px;
-            text-decoration: none;
-        }
-        
-        .toggle-btn:hover {
-            background: var(--bg-hover);
-            color: var(--text-primary);
-        }
-        
-        .toggle-btn.active {
-            background: var(--bg-selected);
-            color: var(--text-primary);
-            border-color: var(--text-tertiary);
-        }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
 
-        .theme-toggle {
-            background: none;
-            border: none;
-            cursor: pointer;
-            font-size: 18px;
-            padding: 4px;
-        }
-        
-        .session-list {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-        
-        .session-item {
-            display: block;
-            position: relative;
-            background: var(--bg-secondary);
-            padding: 16px;
-            border-radius: 8px;
-            border: 1px solid var(--border-color);
-            transition: all 0.2s ease;
-        }
-        
-        .session-item:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-            border-color: var(--accent-blue);
-        }
-        
-        .session-item-link {
-            display: block;
-            text-decoration: none;
-            color: inherit;
-        }
-        
-        .session-item .archive-link {
-            position: absolute;
-            bottom: 12px;
-            right: 12px;
-            font-size: 11px;
-            color: var(--text-tertiary);
-            text-decoration: none;
-            opacity: 0;
-            transition: opacity 0.2s ease;
-            padding: 4px 8px;
-            border-radius: 4px;
-        }
-        
-        .session-item:hover .archive-link {
-            opacity: 1;
-        }
-        
-        .session-item .archive-link:hover {
-            color: var(--accent-orange);
-            background: rgba(217, 115, 13, 0.1);
-        }
-        
-        .session-header {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 8px;
-        }
-        
-        .session-title {
-            font-weight: 600;
-            font-size: 15px;
-            color: var(--text-primary);
-        }
-        
-        .session-time {
-            font-size: 12px;
-            color: var(--text-tertiary);
-            white-space: nowrap;
-            margin-left: 12px;
-        }
-        
-        .session-meta {
-            display: flex;
-            gap: 16px;
-            font-size: 12px;
-            color: var(--text-secondary);
-        }
-        
-        .meta-item {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-        
-        .directory {
-            font-family: monospace;
-            background: rgba(0,0,0,0.05);
-            padding: 2px 6px;
-            border-radius: 4px;
-        }
-        
-        .dark .directory {
-            background: rgba(255,255,255,0.05);
-        }
-        
-        .empty-state {
-            text-align: center;
-            padding: 40px;
-            color: var(--text-secondary);
-        }
-        
-        /* Search styles */
-        .search-container {
-            margin-bottom: 8px;
-            display: flex;
-            gap: 12px;
-            flex-wrap: wrap;
-        }
-        
-        .search-input {
-            flex: 1;
-            min-width: 300px;
-            padding: 10px 14px;
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            background: var(--bg-secondary);
-            color: var(--text-primary);
-            font-size: 14px;
-        }
-        
-        .search-input:focus {
-            outline: none;
-            border-color: var(--accent-blue);
-        }
-        
-        .search-input::placeholder {
-            color: var(--text-tertiary);
-        }
-        
-        .directory-select {
-            padding: 10px 14px;
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            background: var(--bg-secondary);
-            color: var(--text-primary);
-            font-size: 14px;
-            width: 250px;
-            flex-shrink: 0;
-        }
-        
-        .directory-select:focus {
-            outline: none;
-            border-color: var(--accent-blue);
-        }
-        
-        .search-btn {
-            padding: 10px 20px;
-            background: var(--accent-blue);
-            color: white;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 500;
-        }
-        
-        .search-btn:hover {
-            opacity: 0.9;
-        }
-        
-        .search-btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-        
-        .clear-btn {
-            padding: 10px 16px;
-            background: var(--bg-hover);
-            color: var(--text-secondary);
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 14px;
-        }
-        
-        .clear-btn:hover {
-            background: var(--bg-selected);
-        }
-        
-        .search-results-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 12px;
-            padding: 8px 0;
-            color: var(--text-secondary);
-            font-size: 13px;
-        }
-        
-        .match-snippet {
-            margin-top: 8px;
-            padding: 8px 12px;
-            background: rgba(0,0,0,0.03);
-            border-radius: 4px;
-            font-size: 13px;
-            color: var(--text-secondary);
-            border-left: 3px solid var(--accent-blue);
-        }
-        
-        .dark .match-snippet {
-            background: rgba(255,255,255,0.03);
-        }
-        
-        .match-snippet mark {
-            background: rgba(35, 131, 226, 0.3);
-            color: var(--text-primary);
-            padding: 1px 2px;
-            border-radius: 2px;
-        }
-        
-        .match-role {
-            font-size: 11px;
-            text-transform: uppercase;
-            color: var(--text-tertiary);
-            margin-bottom: 4px;
-        }
-        
-        .hidden {
-            display: none !important;
-        }
-        
-        .search-options {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-            margin-bottom: 16px;
-        }
-        
-        .checkbox-label {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            color: var(--text-secondary);
-            font-size: 13px;
-            cursor: pointer;
-            user-select: none;
-        }
-        
-        .checkbox-label input[type="checkbox"] {
-            width: 14px;
-            height: 14px;
-            cursor: pointer;
-        }
+      :root {
+        --bg-primary: #ffffff;
+        --bg-secondary: #f7f6f3;
+        --bg-hover: #efefef;
+        --bg-selected: #e8e7e4;
+        --text-primary: #37352f;
+        --text-secondary: #787774;
+        --text-tertiary: #9b9a97;
+        --accent-blue: #2383e2;
+        --border-color: #e9e9e7;
+      }
+
+      .dark {
+        --bg-primary: #191919;
+        --bg-secondary: #202020;
+        --bg-hover: #2f2f2f;
+        --bg-selected: #363636;
+        --text-primary: #e6e6e6;
+        --text-secondary: #9b9b9b;
+        --text-tertiary: #6b6b6b;
+        --border-color: #2f2f2f;
+      }
+
+      body {
+        font-family:
+          ui-sans-serif,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          Helvetica,
+          Arial,
+          sans-serif;
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        line-height: 1.6;
+        font-size: 14px;
+        padding: 20px;
+      }
+
+      .container {
+        max-width: 1000px;
+        margin: 0 auto;
+      }
+
+      .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid var(--border-color);
+      }
+
+      .title {
+        font-size: 20px;
+        font-weight: 600;
+      }
+
+      .controls {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+      }
+
+      .toggle-btn {
+        background: none;
+        border: 1px solid var(--border-color);
+        color: var(--text-secondary);
+        padding: 6px 12px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 13px;
+        text-decoration: none;
+      }
+
+      .toggle-btn:hover {
+        background: var(--bg-hover);
+        color: var(--text-primary);
+      }
+
+      .toggle-btn.active {
+        background: var(--bg-selected);
+        color: var(--text-primary);
+        border-color: var(--text-tertiary);
+      }
+
+      .theme-toggle {
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 18px;
+        padding: 4px;
+      }
+
+      .session-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .session-item {
+        display: block;
+        position: relative;
+        background: var(--bg-secondary);
+        padding: 16px;
+        border-radius: 8px;
+        border: 1px solid var(--border-color);
+        transition: all 0.2s ease;
+      }
+
+      .session-item:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        border-color: var(--accent-blue);
+      }
+
+      .session-item-link {
+        display: block;
+        text-decoration: none;
+        color: inherit;
+      }
+
+      .session-item .archive-link {
+        position: absolute;
+        bottom: 12px;
+        right: 12px;
+        font-size: 11px;
+        color: var(--text-tertiary);
+        text-decoration: none;
+        opacity: 0;
+        transition: opacity 0.2s ease;
+        padding: 4px 8px;
+        border-radius: 4px;
+      }
+
+      .session-item:hover .archive-link {
+        opacity: 1;
+      }
+
+      .session-item .archive-link:hover {
+        color: var(--accent-orange);
+        background: rgba(217, 115, 13, 0.1);
+      }
+
+      .session-header {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 8px;
+      }
+
+      .session-title {
+        font-weight: 600;
+        font-size: 15px;
+        color: var(--text-primary);
+      }
+
+      .session-time {
+        font-size: 12px;
+        color: var(--text-tertiary);
+        white-space: nowrap;
+        margin-left: 12px;
+      }
+
+      .session-meta {
+        display: flex;
+        gap: 16px;
+        font-size: 12px;
+        color: var(--text-secondary);
+      }
+
+      .meta-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .directory {
+        font-family: monospace;
+        background: rgba(0, 0, 0, 0.05);
+        padding: 2px 6px;
+        border-radius: 4px;
+      }
+
+      .dark .directory {
+        background: rgba(255, 255, 255, 0.05);
+      }
+
+      .empty-state {
+        text-align: center;
+        padding: 40px;
+        color: var(--text-secondary);
+      }
+
+      /* Search styles */
+      .search-container {
+        margin-bottom: 8px;
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .search-input {
+        flex: 1;
+        min-width: 300px;
+        padding: 10px 14px;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        font-size: 14px;
+      }
+
+      .search-input:focus {
+        outline: none;
+        border-color: var(--accent-blue);
+      }
+
+      .search-input::placeholder {
+        color: var(--text-tertiary);
+      }
+
+      .directory-select {
+        padding: 10px 14px;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        font-size: 14px;
+        width: 250px;
+        flex-shrink: 0;
+      }
+
+      .directory-select:focus {
+        outline: none;
+        border-color: var(--accent-blue);
+      }
+
+      .search-btn {
+        padding: 10px 20px;
+        background: var(--accent-blue);
+        color: white;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
+      }
+
+      .search-btn:hover {
+        opacity: 0.9;
+      }
+
+      .search-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .clear-btn {
+        padding: 10px 16px;
+        background: var(--bg-hover);
+        color: var(--text-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+      }
+
+      .clear-btn:hover {
+        background: var(--bg-selected);
+      }
+
+      .search-results-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+        padding: 8px 0;
+        color: var(--text-secondary);
+        font-size: 13px;
+      }
+
+      .match-snippet {
+        margin-top: 8px;
+        padding: 8px 12px;
+        background: rgba(0, 0, 0, 0.03);
+        border-radius: 4px;
+        font-size: 13px;
+        color: var(--text-secondary);
+        border-left: 3px solid var(--accent-blue);
+      }
+
+      .dark .match-snippet {
+        background: rgba(255, 255, 255, 0.03);
+      }
+
+      .match-snippet mark {
+        background: rgba(35, 131, 226, 0.3);
+        color: var(--text-primary);
+        padding: 1px 2px;
+        border-radius: 2px;
+      }
+
+      .match-role {
+        font-size: 11px;
+        text-transform: uppercase;
+        color: var(--text-tertiary);
+        margin-bottom: 4px;
+      }
+
+      .hidden {
+        display: none !important;
+      }
+
+      .search-options {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 16px;
+      }
+
+      .checkbox-label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--text-secondary);
+        font-size: 13px;
+        cursor: pointer;
+        user-select: none;
+      }
+
+      .checkbox-label input[type="checkbox"] {
+        width: 14px;
+        height: 14px;
+        cursor: pointer;
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <div class="container">
-        <div class="header">
-            <div class="title">OpenCode Sessions</div>
-            <div class="controls">
-                <a href="/archived" class="toggle-btn" title="View archived sessions">Archived</a>
-                <a href="/?all={{ 'false' if show_all else 'true' }}" class="toggle-btn {{ 'active' if show_all }}">
-                    {{ 'Hide Subagents' if show_all else 'Show All' }}
-                </a>
-                <button class="theme-toggle" onclick="toggleTheme()" title="Toggle dark mode">🌓</button>
-            </div>
+      <div class="header">
+        <div class="title">OpenCode Sessions</div>
+        <div class="controls">
+          <a href="/archived" class="toggle-btn" title="View archived sessions"
+            >Archived</a
+          >
+          <a
+            href="/?all={{ 'false' if show_all else 'true' }}"
+            class="toggle-btn {{ 'active' if show_all }}"
+          >
+            {{ 'Hide Subagents' if show_all else 'Show All' }}
+          </a>
+          <button
+            class="theme-toggle"
+            onclick="toggleTheme()"
+            title="Toggle dark mode"
+          >
+            🌓
+          </button>
         </div>
-        
-        <div class="search-container">
-            <input type="text" id="searchInput" class="search-input" placeholder="Search session contents..." />
-            <select id="directorySelect" class="directory-select">
-                <option value="">All directories</option>
-            </select>
-            <button onclick="performSearch()" class="search-btn" id="searchBtn">Search</button>
-            <button onclick="clearSearch()" class="clear-btn hidden" id="clearBtn">Clear</button>
-        </div>
-        <div class="search-options">
-            <label class="checkbox-label">
-                <input type="checkbox" id="regexCheckbox" />
-                <span>Use regular expression</span>
-            </label>
-        </div>
-        
-        <div id="searchResultsHeader" class="search-results-header hidden">
-            <span id="searchResultsCount"></span>
-        </div>
-        
-        <div class="session-list" id="sessionList">
-            {% for session in sessions %}
-            <div class="session-item" data-session-id="{{ session.id }}">
-                <a href="/session/{{ session.id }}" class="session-item-link">
-                    <div class="session-header">
-                        <div class="session-title">{{ session.title or "Untitled" }}</div>
-                        <div class="session-time">{{ session.updated_formatted }}</div>
-                    </div>
-                    <div class="session-meta">
-                        <div class="meta-item">
-                            <span>📂</span>
-                            <span class="directory" title="{{ session.directory }}">{{ session.directory_short }}</span>
-                        </div>
-                        {% if session.model %}
-                        <div class="meta-item">
-                            <span>🤖</span>
-                            <span>{{ session.model }}</span>
-                        </div>
-                        {% endif %}
-                        <div class="meta-item">
-                            <span style="color: var(--text-tertiary)">ID: {{ session.id }}</span>
-                        </div>
-                    </div>
-                </a>
-                <a href="#" class="archive-link" onclick="archiveSession('{{ session.id }}', event)">Archive</a>
-            </div>
-            {% else %}
-            <div class="empty-state">
-                No sessions found.
-            </div>
-            {% endfor %}
-        </div>
+      </div>
+
+      <div class="search-container">
+        <input
+          type="text"
+          id="searchInput"
+          class="search-input"
+          placeholder="Search session contents..."
+        />
+        <select id="directorySelect" class="directory-select">
+          <option value="">All directories</option>
+        </select>
+        <button onclick="performSearch()" class="search-btn" id="searchBtn">
+          Search
+        </button>
+        <button onclick="clearSearch()" class="clear-btn hidden" id="clearBtn">
+          Clear
+        </button>
+      </div>
+      <div class="search-options">
+        <label class="checkbox-label">
+          <input type="checkbox" id="regexCheckbox" />
+          <span>Use regular expression</span>
+        </label>
+      </div>
+
+      <div id="searchResultsHeader" class="search-results-header hidden">
+        <span id="searchResultsCount"></span>
+      </div>
+
+      <div class="session-list" id="sessionList">
+        {% for session in sessions %}
+          <div class="session-item" data-session-id="{{ session.id }}">
+            <a href="/session/{{ session.id }}" class="session-item-link">
+              <div class="session-header">
+                <div class="session-title">
+                  {{ session.title or "Untitled" }}
+                </div>
+                <div class="session-time">{{ session.updated_formatted }}</div>
+              </div>
+              <div class="session-meta">
+                <div class="meta-item">
+                  <span>📂</span>
+                  <span class="directory" title="{{ session.directory }}"
+                    >{{ session.directory_short }}</span
+                  >
+                </div>
+                {% if session.model %}
+                  <div class="meta-item">
+                    <span>🤖</span>
+                    <span>{{ session.model }}</span>
+                  </div>
+                {% endif %}
+                <div class="meta-item">
+                  <span style="color: var(--text-tertiary)"
+                    >ID: {{ session.id }}</span
+                  >
+                </div>
+              </div>
+            </a>
+            <a
+              href="#"
+              class="archive-link"
+              onclick="archiveSession('{{ session.id }}', event)"
+              >Archive</a
+            >
+          </div>
+        {% else %}
+          <div class="empty-state">No sessions found.</div>
+        {% endfor %}
+      </div>
     </div>
 
     <script>
-        // Theme
-        function toggleTheme() {
-            document.body.classList.toggle('dark');
-            localStorage.setItem('theme', document.body.classList.contains('dark') ? 'dark' : 'light');
+      // Theme
+      function toggleTheme() {
+        document.body.classList.toggle("dark");
+        localStorage.setItem(
+          "theme",
+          document.body.classList.contains("dark") ? "dark" : "light",
+        );
+      }
+
+      // Init theme
+      if (localStorage.getItem("theme") === "dark") {
+        document.body.classList.add("dark");
+      } else if (
+        !localStorage.getItem("theme") &&
+        window.matchMedia("(prefers-color-scheme: dark)").matches
+      ) {
+        document.body.classList.add("dark");
+      }
+
+      // Search functionality
+      const searchInput = document.getElementById("searchInput");
+      const directorySelect = document.getElementById("directorySelect");
+      const regexCheckbox = document.getElementById("regexCheckbox");
+      const searchBtn = document.getElementById("searchBtn");
+      const clearBtn = document.getElementById("clearBtn");
+      const sessionList = document.getElementById("sessionList");
+      const searchResultsHeader = document.getElementById(
+        "searchResultsHeader",
+      );
+      const searchResultsCount = document.getElementById("searchResultsCount");
+
+      // Store original content
+      const originalContent = sessionList.innerHTML;
+
+      // Update placeholder when regex checkbox changes
+      regexCheckbox.addEventListener("change", () => {
+        searchInput.placeholder = regexCheckbox.checked
+          ? "Search with regex pattern..."
+          : "Search session contents...";
+      });
+
+      // Load directories on page load
+      async function loadDirectories() {
+        try {
+          const response = await fetch("/api/directories");
+          const directories = await response.json();
+          directories.forEach((dir) => {
+            const option = document.createElement("option");
+            option.value = dir;
+            // Shorten for display
+            const shortDir = dir.length > 50 ? "..." + dir.slice(-47) : dir;
+            option.textContent = shortDir;
+            option.title = dir;
+            directorySelect.appendChild(option);
+          });
+        } catch (e) {
+          console.error("Failed to load directories:", e);
         }
-        
-        // Init theme
-        if (localStorage.getItem('theme') === 'dark') {
-            document.body.classList.add('dark');
-        } else if (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-            document.body.classList.add('dark');
+      }
+
+      async function performSearch() {
+        const query = searchInput.value.trim();
+        const directory = directorySelect.value;
+        const useRegex = regexCheckbox.checked;
+
+        if (!query && !directory) {
+          return;
         }
-        
-        // Search functionality
-        const searchInput = document.getElementById('searchInput');
-        const directorySelect = document.getElementById('directorySelect');
-        const regexCheckbox = document.getElementById('regexCheckbox');
-        const searchBtn = document.getElementById('searchBtn');
-        const clearBtn = document.getElementById('clearBtn');
-        const sessionList = document.getElementById('sessionList');
-        const searchResultsHeader = document.getElementById('searchResultsHeader');
-        const searchResultsCount = document.getElementById('searchResultsCount');
-        
-        // Store original content
-        const originalContent = sessionList.innerHTML;
-        
-        // Update placeholder when regex checkbox changes
-        regexCheckbox.addEventListener('change', () => {
-            searchInput.placeholder = regexCheckbox.checked 
-                ? 'Search with regex pattern...' 
-                : 'Search session contents...';
-        });
-        
-        // Load directories on page load
-        async function loadDirectories() {
-            try {
-                const response = await fetch('/api/directories');
-                const directories = await response.json();
-                directories.forEach(dir => {
-                    const option = document.createElement('option');
-                    option.value = dir;
-                    // Shorten for display
-                    const shortDir = dir.length > 50 ? '...' + dir.slice(-47) : dir;
-                    option.textContent = shortDir;
-                    option.title = dir;
-                    directorySelect.appendChild(option);
-                });
-            } catch (e) {
-                console.error('Failed to load directories:', e);
-            }
+
+        searchBtn.disabled = true;
+        searchBtn.textContent = "Searching...";
+
+        try {
+          const params = new URLSearchParams();
+          if (query) params.set("q", query);
+          if (directory) params.set("directory", directory);
+          if (useRegex) params.set("regex", "true");
+
+          // If no query but directory selected, use wildcard (only for non-regex)
+          if (!query && directory && !useRegex) {
+            params.set("q", "*");
+          }
+
+          const response = await fetch("/api/search?" + params.toString());
+          const results = await response.json();
+
+          displaySearchResults(results, query, useRegex);
+        } catch (e) {
+          console.error("Search failed:", e);
+          sessionList.innerHTML =
+            '<div class="empty-state">Search failed. Please try again.</div>';
+        } finally {
+          searchBtn.disabled = false;
+          searchBtn.textContent = "Search";
         }
-        
-        async function performSearch() {
-            const query = searchInput.value.trim();
-            const directory = directorySelect.value;
-            const useRegex = regexCheckbox.checked;
-            
-            if (!query && !directory) {
-                return;
-            }
-            
-            searchBtn.disabled = true;
-            searchBtn.textContent = 'Searching...';
-            
-            try {
-                const params = new URLSearchParams();
-                if (query) params.set('q', query);
-                if (directory) params.set('directory', directory);
-                if (useRegex) params.set('regex', 'true');
-                
-                // If no query but directory selected, use wildcard (only for non-regex)
-                if (!query && directory && !useRegex) {
-                    params.set('q', '*');
-                }
-                
-                const response = await fetch('/api/search?' + params.toString());
-                const results = await response.json();
-                
-                displaySearchResults(results, query, useRegex);
-            } catch (e) {
-                console.error('Search failed:', e);
-                sessionList.innerHTML = '<div class="empty-state">Search failed. Please try again.</div>';
-            } finally {
-                searchBtn.disabled = false;
-                searchBtn.textContent = 'Search';
-            }
+      }
+
+      function displaySearchResults(results, query, useRegex = false) {
+        clearBtn.classList.remove("hidden");
+        searchResultsHeader.classList.remove("hidden");
+        const searchType = useRegex ? "regex" : "plaintext";
+        searchResultsCount.textContent = `Found ${results.length} session${results.length !== 1 ? "s" : ""} matching "${query}" (${searchType})`;
+
+        if (results.length === 0) {
+          const hint = useRegex
+            ? "Check your regex pattern syntax."
+            : "Try different search terms.";
+          sessionList.innerHTML = `<div class="empty-state">No sessions found matching your search. ${hint}</div>`;
+          return;
         }
-        
-        function displaySearchResults(results, query, useRegex = false) {
-            clearBtn.classList.remove('hidden');
-            searchResultsHeader.classList.remove('hidden');
-            const searchType = useRegex ? 'regex' : 'plaintext';
-            searchResultsCount.textContent = `Found ${results.length} session${results.length !== 1 ? 's' : ''} matching "${query}" (${searchType})`;
-            
-            if (results.length === 0) {
-                const hint = useRegex 
-                    ? 'Check your regex pattern syntax.' 
-                    : 'Try different search terms.';
-                sessionList.innerHTML = `<div class="empty-state">No sessions found matching your search. ${hint}</div>`;
-                return;
-            }
-            
-            sessionList.innerHTML = results.map(result => {
-                const title = result.title || 'Untitled';
-                const directory = result.directory || '';
-                const dirShort = directory.length > 40 ? '...' + directory.slice(-37) : directory;
-                const timeFormatted = result.time_updated 
-                    ? new Date(result.time_updated).toLocaleString()
-                    : 'Unknown';
-                
-                // Format matches with highlighting
-                const matchesHtml = result.matches.map(match => {
-                    // Replace <<MATCH>> and <<END>> markers with <mark> tags
-                    const snippet = escapeHtml(match.snippet)
-                        .replace(/&lt;&lt;MATCH&gt;&gt;/g, '<mark>')
-                        .replace(/&lt;&lt;END&gt;&gt;/g, '</mark>');
-                    return `
+
+        sessionList.innerHTML = results
+          .map((result) => {
+            const title = result.title || "Untitled";
+            const directory = result.directory || "";
+            const dirShort =
+              directory.length > 40 ? "..." + directory.slice(-37) : directory;
+            const timeFormatted = result.time_updated
+              ? new Date(result.time_updated).toLocaleString()
+              : "Unknown";
+
+            // Format matches with highlighting
+            const matchesHtml = result.matches
+              .map((match) => {
+                // Replace <<MATCH>> and <<END>> markers with <mark> tags
+                const snippet = escapeHtml(match.snippet)
+                  .replace(/&lt;&lt;MATCH&gt;&gt;/g, "<mark>")
+                  .replace(/&lt;&lt;END&gt;&gt;/g, "</mark>");
+                return `
                         <div class="match-snippet">
                             <div class="match-role">${match.role}</div>
                             <div>${snippet}</div>
                         </div>
                     `;
-                }).join('');
-                
-                const moreMatches = result.total_matches > result.matches.length 
-                    ? `<div style="font-size: 12px; color: var(--text-tertiary); margin-top: 8px;">
+              })
+              .join("");
+
+            const moreMatches =
+              result.total_matches > result.matches.length
+                ? `<div style="font-size: 12px; color: var(--text-tertiary); margin-top: 8px;">
                          +${result.total_matches - result.matches.length} more matches
                        </div>`
-                    : '';
-                
-                // Build URL with search query parameter (and regex flag if enabled)
-                let sessionUrl = `/session/${result.session_id}?q=${encodeURIComponent(query)}`;
-                if (useRegex) sessionUrl += '&regex=true';
-                
-                return `
+                : "";
+
+            // Build URL with search query parameter (and regex flag if enabled)
+            let sessionUrl = `/session/${result.session_id}?q=${encodeURIComponent(query)}`;
+            if (useRegex) sessionUrl += "&regex=true";
+
+            return `
                     <div class="session-item" data-session-id="${result.session_id}">
                         <a href="${sessionUrl}" class="session-item-link">
                             <div class="session-header">
@@ -561,70 +611,71 @@
                         <a href="#" class="archive-link" onclick="archiveSession('${result.session_id}', event)">Archive</a>
                     </div>
                 `;
-            }).join('');
+          })
+          .join("");
+      }
+
+      function clearSearch() {
+        searchInput.value = "";
+        directorySelect.value = "";
+        regexCheckbox.checked = false;
+        searchInput.placeholder = "Search session contents...";
+        sessionList.innerHTML = originalContent;
+        clearBtn.classList.add("hidden");
+        searchResultsHeader.classList.add("hidden");
+      }
+
+      function escapeHtml(text) {
+        const div = document.createElement("div");
+        div.textContent = text;
+        return div.innerHTML;
+      }
+
+      // Search on Enter key
+      searchInput.addEventListener("keypress", (e) => {
+        if (e.key === "Enter") {
+          performSearch();
         }
-        
-        function clearSearch() {
-            searchInput.value = '';
-            directorySelect.value = '';
-            regexCheckbox.checked = false;
-            searchInput.placeholder = 'Search session contents...';
-            sessionList.innerHTML = originalContent;
-            clearBtn.classList.add('hidden');
-            searchResultsHeader.classList.add('hidden');
+      });
+
+      // Archive functionality
+      async function archiveSession(sessionId, event) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const link = event.target;
+        link.textContent = "Archiving...";
+        link.style.pointerEvents = "none";
+
+        try {
+          const response = await fetch(`/api/session/${sessionId}/archive`, {
+            method: "POST",
+          });
+
+          if (response.ok) {
+            // Remove the session from the list with animation
+            const item = link.closest(".session-item");
+            item.style.opacity = "0";
+            item.style.transform = "translateX(-20px)";
+            item.style.transition = "all 0.3s ease";
+
+            setTimeout(() => {
+              item.remove();
+            }, 300);
+          } else {
+            link.textContent = "Archive";
+            link.style.pointerEvents = "";
+            console.error("Failed to archive session");
+          }
+        } catch (e) {
+          link.textContent = "Archive";
+          link.style.pointerEvents = "";
+          console.error("Failed to archive:", e);
         }
-        
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-        
-        // Search on Enter key
-        searchInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                performSearch();
-            }
-        });
-        
-        // Archive functionality
-        async function archiveSession(sessionId, event) {
-            event.preventDefault();
-            event.stopPropagation();
-            
-            const link = event.target;
-            link.textContent = 'Archiving...';
-            link.style.pointerEvents = 'none';
-            
-            try {
-                const response = await fetch(`/api/session/${sessionId}/archive`, {
-                    method: 'POST'
-                });
-                
-                if (response.ok) {
-                    // Remove the session from the list with animation
-                    const item = link.closest('.session-item');
-                    item.style.opacity = '0';
-                    item.style.transform = 'translateX(-20px)';
-                    item.style.transition = 'all 0.3s ease';
-                    
-                    setTimeout(() => {
-                        item.remove();
-                    }, 300);
-                } else {
-                    link.textContent = 'Archive';
-                    link.style.pointerEvents = '';
-                    console.error('Failed to archive session');
-                }
-            } catch (e) {
-                link.textContent = 'Archive';
-                link.style.pointerEvents = '';
-                console.error('Failed to archive:', e);
-            }
-        }
-        
-        // Load directories on init
-        loadDirectories();
+      }
+
+      // Load directories on init
+      loadDirectories();
     </script>
-</body>
+  </body>
 </html>

@@ -1,1631 +1,186 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{{ session.summary.title }} | OpenCode Session Viewer</title>
     <!-- Markdown & Syntax Highlighting -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css"
+    />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.8/purify.min.js"></script>
-    <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-        
-        :root {
-            --bg-primary: #ffffff;
-            --bg-secondary: #f7f6f3;
-            --bg-hover: #efefef;
-            --bg-selected: #e8e7e4;
-            --bg-user: #f0fdf4;
-            --bg-assistant: #faf5ff;
-            --text-primary: #37352f;
-            --text-secondary: #787774;
-            --text-tertiary: #9b9a97;
-            --accent-blue: #2383e2;
-            --accent-green: #0f7b6c;
-            --accent-orange: #d9730d;
-            --accent-purple: #9065b0;
-            --border-color: #e9e9e7;
-            --code-bg: #f7f6f3;
-            --chart-in: #60a5fa;
-            --chart-out: #f472b6;
-            --chart-cache: #34d399;
-            --bg-btn-hover: #e8e7e4;
-            --border-table: #d0d0ce; /* Halfway between #e9e9e7 and #9b9a97 */
-        }
-        
-        .dark {
-            --bg-primary: #191919;
-            --bg-secondary: #202020;
-            --bg-hover: #2f2f2f;
-            --bg-selected: #363636;
-            --bg-user: #1a2e1a;
-            --bg-assistant: #251a2e;
-            --text-primary: #e6e6e6;
-            --text-secondary: #9b9b9b;
-            --text-tertiary: #6b6b6b;
-            --border-color: #2f2f2f;
-            --code-bg: #2f2f2f;
-            --bg-btn-hover: #363636;
-            --border-table: #4d4d4d; /* Halfway between #2f2f2f and #6b6b6b */
-        }
-        
-        body {
-            font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            line-height: 1.6;
-            font-size: 14px;
-        }
-        
-        .container {
-            display: flex;
-            height: 100vh;
-        }
-        
-        /* Sidebar */
-        .sidebar {
-            width: 560px;
-            background: var(--bg-secondary);
-            border-right: 1px solid var(--border-color);
-            display: flex;
-            flex-direction: column;
-            flex-shrink: 0;
-        }
-        
-        .sidebar-header {
-            padding: 12px 14px;
-            border-bottom: 1px solid var(--border-color);
-        }
-        
-        .sidebar-title {
-            font-size: 11px;
-            font-weight: 600;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 10px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .back-link {
-            text-decoration: none;
-            color: var(--text-secondary);
-            margin-right: 8px;
-        }
-        
-        .back-link:hover {
-            color: var(--accent-blue);
-        }
-        
-        .theme-toggle {
-            background: none;
-            border: none;
-            cursor: pointer;
-            font-size: 16px;
-            padding: 4px;
-            border-radius: 4px;
-        }
-        
-        .theme-toggle:hover {
-            background: var(--bg-hover);
-        }
-        
-        .search-box {
-            width: 100%;
-            padding: 6px 10px;
-            background: var(--bg-primary);
-            border: 1px solid var(--border-color);
-            border-radius: 4px;
-            color: var(--text-primary);
-            font-size: 13px;
-        }
-        
-        .search-box:focus {
-            outline: none;
-            border-color: var(--accent-blue);
-        }
-        
-        .search-box::placeholder {
-            color: var(--text-tertiary);
-        }
-        
-        .filter-row {
-            display: flex;
-            gap: 4px;
-            padding: 8px 14px;
-            border-bottom: 1px solid var(--border-color);
-        }
-        
-        .filter-btn {
-            padding: 3px 8px;
-            font-size: 12px;
-            border: none;
-            background: transparent;
-            color: var(--text-secondary);
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        
-        .filter-btn:hover {
-            background: var(--bg-hover);
-        }
-        
-        .filter-btn.active {
-            background: var(--bg-selected);
-            color: var(--text-primary);
-        }
-        
-        .stats-row {
-            display: flex;
-            gap: 12px;
-            padding: 6px 14px;
-            font-size: 11px;
-            color: var(--text-tertiary);
-            border-bottom: 1px solid var(--border-color);
-        }
-        
-        .message-list {
-            flex: 1;
-            overflow-y: auto;
-            padding: 4px 8px;
-        }
-        
-        .message-item {
-            padding: 8px 10px;
-            border-radius: 4px;
-            cursor: pointer;
-            margin-bottom: 2px;
-        }
-        
-        .message-item:hover {
-            background: var(--bg-hover);
-        }
-        
-        .message-item.active {
-            background: var(--bg-selected);
-        }
-        
-        .message-item-header {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 2px;
-        }
-        
-        .role-badge {
-            font-size: 10px;
-            font-weight: 600;
-            padding: 1px 6px;
-            border-radius: 3px;
-            text-transform: uppercase;
-        }
-        
-        .role-badge.user {
-            background: rgba(15, 123, 108, 0.15);
-            color: var(--accent-green);
-        }
-        
-        .role-badge.assistant {
-            background: rgba(144, 101, 176, 0.15);
-            color: var(--accent-purple);
-        }
-        
-        .message-time {
-            font-size: 11px;
-            color: var(--text-tertiary);
-        }
-        
-        .message-preview {
-            font-size: 12px;
-            color: var(--text-secondary);
-            /* overflow: hidden; */
-            /* text-overflow: ellipsis; */
-            /* white-space: nowrap; */
-            word-wrap: break-word;
-            line-height: 1.4;
-        }
-        
-        .message-preview mark {
-            background: rgba(35, 131, 226, 0.3);
-            color: var(--text-primary);
-            padding: 1px 2px;
-            border-radius: 2px;
-        }
-        
-        .search-active-indicator {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            padding: 6px 10px;
-            margin: 8px 14px;
-            background: rgba(35, 131, 226, 0.1);
-            border: 1px solid rgba(35, 131, 226, 0.3);
-            border-radius: 4px;
-            font-size: 12px;
-            color: var(--accent-blue);
-        }
-        
-        .search-active-indicator .clear-search {
-            margin-left: auto;
-            background: none;
-            border: none;
-            color: var(--text-secondary);
-            cursor: pointer;
-            font-size: 14px;
-            padding: 2px 6px;
-            border-radius: 3px;
-        }
-        
-        .search-active-indicator .clear-search:hover {
-            background: var(--bg-hover);
-            color: var(--text-primary);
-        }
-        
-        /* Main content */
-        .main-content {
-            flex: 1;
-            overflow-y: auto;
-            scroll-behavior: smooth;
-        }
-        
-        .timeline {
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 24px;
-        }
-        
-        .message {
-            margin-bottom: 24px;
-            border-radius: 8px;
-            border: 1px solid var(--border-color);
-            overflow: hidden;
-            scroll-margin-top: 24px;
-        }
-        
-        .message.user {
-            background: var(--bg-user);
-        }
-        
-        .message.assistant {
-            background: var(--bg-assistant);
-        }
-        
-        .message.highlighted {
-            box-shadow: 0 0 0 2px var(--accent-blue);
-        }
-        
-        .message-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 10px 16px;
-            border-bottom: 1px solid var(--border-color);
-            background: rgba(0,0,0,0.02);
-        }
-        
-        .dark .message-header {
-            background: rgba(255,255,255,0.02);
-        }
-        
-        .message-header-left {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .copy-btn {
-            background: none;
-            border: 1px solid var(--border-color);
-            color: var(--text-secondary);
-            padding: 4px 8px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 11px;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            transition: all 0.2s ease;
-        }
-
-        .copy-btn:hover {
-            background: var(--bg-btn-hover);
-            color: var(--text-primary);
-        }
-
-        .copy-btn:active {
-            transform: scale(0.95);
-        }
-        
-        .message-meta {
-            font-size: 11px;
-            color: var(--text-tertiary);
-            display: flex;
-            gap: 12px;
-        }
-        
-        .message-body {
-            padding: 16px;
-        }
-        
-        /* Parts */
-        .part {
-            margin-bottom: 12px;
-        }
-        
-        .part:last-child {
-            margin-bottom: 0;
-        }
-        
-        .part-text {
-            white-space: normal;
-            word-wrap: break-word;
-            line-height: 1.7;
-        }
-
-        /* Markdown Styles */
-        .part-text p { margin-bottom: 0.8em; }
-        .part-text p:last-child { margin-bottom: 0; }
-        .part-text ul, .part-text ol { margin-bottom: 1em; padding-left: 20px; }
-        .part-text li { margin-bottom: 0.25em; }
-        .part-text h1, .part-text h2, .part-text h3 { margin-top: 1.5em; margin-bottom: 0.5em; font-weight: 600; line-height: 1.25; }
-        .part-text h1 { font-size: 1.5em; border-bottom: 1px solid var(--border-color); padding-bottom: 0.3em; }
-        .part-text h2 { font-size: 1.3em; border-bottom: 1px solid var(--border-color); padding-bottom: 0.3em; }
-        .part-text h3 { font-size: 1.1em; }
-        .part-text a { color: var(--accent-blue); text-decoration: none; }
-        .part-text a:hover { text-decoration: underline; }
-        .part-text blockquote { border-left: 4px solid var(--border-color); padding-left: 16px; color: var(--text-secondary); margin: 1em 0; }
-        .part-text hr { border: none; border-bottom: 1px solid var(--border-color); margin: 2em 0; }
-        
-        /* Table Styles */
-        .part-text table {
-            border-collapse: collapse;
-            width: 100%;
-            margin: 1em 0;
-            border: 1px solid var(--border-table);
-        }
-        
-        .part-text th, .part-text td {
-            border: 1px solid var(--border-table);
-            padding: 8px 12px;
-            text-align: left;
-        }
-        
-        .part-text th {
-            background: var(--bg-secondary);
-            font-weight: 600;
-        }
-        
-        .part-text pre {
-            background: var(--code-bg);
-            padding: 12px;
-            border-radius: 6px;
-            overflow-x: auto;
-            margin: 1em 0;
-            font-size: 13px;
-            border: 1px solid var(--border-color);
-        }
-        
-        .part-text code {
-            font-family: "SFMono-Regular", Menlo, Consolas, monospace;
-            font-size: 0.9em;
-            background: rgba(0,0,0,0.06);
-            padding: 2px 4px;
-            border-radius: 3px;
-        }
-        
-        .dark .part-text code {
-            background: rgba(255,255,255,0.1);
-        }
-        
-        .part-text pre code {
-            background: transparent;
-            padding: 0;
-            border-radius: 0;
-            color: inherit;
-            border: none;
-        }
-        
-        /* Highlight.js Dark Mode Overrides */
-        .dark .hljs { background: transparent; color: #c9d1d9; }
-        .dark .hljs-doctag, .dark .hljs-keyword, .dark .hljs-meta .hljs-keyword, .dark .hljs-template-tag, .dark .hljs-template-variable, .dark .hljs-type, .dark .hljs-variable.language_ { color: #ff7b72; }
-        .dark .hljs-title, .dark .hljs-title.class_, .dark .hljs-title.class_.inherited__, .dark .hljs-title.function_ { color: #d2a8ff; }
-        .dark .hljs-attr, .dark .hljs-attribute, .dark .hljs-literal, .dark .hljs-meta, .dark .hljs-number, .dark .hljs-operator, .dark .hljs-variable, .dark .hljs-selector-attr, .dark .hljs-selector-class, .dark .hljs-selector-id { color: #79c0ff; }
-        .dark .hljs-regexp, .dark .hljs-string, .dark .hljs-meta .hljs-string { color: #a5d6ff; }
-        .dark .hljs-built_in, .dark .hljs-symbol { color: #ffa657; }
-        .dark .hljs-comment, .dark .hljs-code, .dark .hljs-formula { color: #8b949e; }
-        .dark .hljs-name, .dark .hljs-quote, .dark .hljs-selector-tag, .dark .hljs-selector-pseudo { color: #7ee787; }
-        
-        .part-tool {
-            background: var(--bg-secondary);
-            border-radius: 6px;
-            border: 1px solid var(--border-color);
-            overflow: hidden;
-            margin: 8px 0;
-        }
-        
-        .tool-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 8px 12px;
-            cursor: pointer;
-        }
-        
-        .tool-header:hover {
-            background: var(--bg-hover);
-        }
-        
-        .tool-name {
-            font-size: 12px;
-            font-weight: 600;
-            color: var(--accent-orange);
-        }
-        
-        .tool-summary {
-            font-size: 11px;
-            color: var(--text-secondary);
-            margin-left: 8px;
-            font-weight: normal;
-        }
-        
-        .tool-status {
-            font-size: 11px;
-            color: var(--accent-green);
-        }
-        
-        .tool-body {
-            padding: 12px;
-            border-top: 1px solid var(--border-color);
-            display: none;
-        }
-        
-        .tool-body.expanded {
-            display: block;
-        }
-        
-        .tool-section {
-            margin-bottom: 12px;
-        }
-        
-        .tool-section:last-child {
-            margin-bottom: 0;
-        }
-        
-        .tool-section-label {
-            font-size: 10px;
-            font-weight: 600;
-            text-transform: uppercase;
-            color: var(--text-tertiary);
-            margin-bottom: 6px;
-        }
-        
-        pre.tool-code {
-            background: var(--code-bg);
-            border-radius: 4px;
-            padding: 10px 12px;
-            font-family: "SFMono-Regular", Menlo, Consolas, monospace;
-            font-size: 12px;
-            overflow-x: auto;
-            max-height: 400px;
-            overflow-y: auto;
-            white-space: pre-wrap;
-            word-break: break-word;
-            margin: 0;
-        }
-        
-        pre.tool-code code {
-            background: transparent;
-            padding: 0;
-            font-size: inherit;
-            font-family: inherit;
-        }
-        
-        .part-step {
-            font-size: 11px;
-            color: var(--text-tertiary);
-            padding: 6px 0;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-        
-        .token-badge {
-            font-size: 10px;
-            padding: 2px 6px;
-            background: var(--bg-hover);
-            border-radius: 3px;
-            color: var(--text-secondary);
-        }
-        
-        .part-text code {
-            background: var(--code-bg);
-            padding: 2px 5px;
-            border-radius: 3px;
-            font-family: "SFMono-Regular", Menlo, Consolas, monospace;
-            font-size: 0.9em;
-        }
-        
-        .part-reasoning {
-            background: rgba(0,0,0,0.03);
-            border-left: 3px solid var(--accent-purple);
-            padding: 10px 14px;
-            margin: 12px 0;
-            border-radius: 0 4px 4px 0;
-            color: var(--text-secondary);
-            font-size: 0.95em;
-        }
-        
-        .dark .part-reasoning {
-            background: rgba(255,255,255,0.03);
-        }
-        
-        .reasoning-label {
-            font-size: 10px;
-            font-weight: 600;
-            text-transform: uppercase;
-            color: var(--accent-purple);
-            margin-bottom: 6px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .subtask-prompt {
-            font-size: 0.9em;
-            margin-bottom: 8px;
-            color: var(--text-primary);
-        }
-
-        .subtask-result {
-            margin-top: 8px;
-            padding-top: 8px;
-            border-top: 1px dashed var(--border-color);
-        }
-        
-        .part-text pre {
-            background: var(--code-bg);
-            padding: 12px;
-            border-radius: 6px;
-            overflow-x: auto;
-            margin: 12px 0;
-        }
-        
-        /* Right panel - visualizations */
-        .viz-panel {
-            width: 240px;
-            background: var(--bg-secondary);
-            border-left: 1px solid var(--border-color);
-            padding: 16px;
-            flex-shrink: 0;
-            overflow-y: auto;
-        }
-        
-        .viz-section {
-            margin-bottom: 24px;
-        }
-        
-        .viz-title {
-            font-size: 10px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: var(--text-tertiary);
-            margin-bottom: 12px;
-        }
-        
-        .current-tokens {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-        
-        .token-row {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        
-        .token-label {
-            font-size: 11px;
-            color: var(--text-secondary);
-            width: 45px;
-        }
-        
-        .token-bar-container {
-            flex: 1;
-            height: 16px;
-            background: var(--bg-primary);
-            border-radius: 3px;
-            overflow: hidden;
-        }
-        
-        .token-bar {
-            height: 100%;
-            border-radius: 3px;
-            transition: width 0.3s ease;
-        }
-        
-        .token-bar.input {
-            background: var(--chart-in);
-        }
-        
-        .token-bar.output {
-            background: var(--chart-out);
-        }
-        
-        .token-bar.cache {
-            background: var(--chart-cache);
-        }
-        
-        .token-value {
-            font-size: 11px;
-            color: var(--text-primary);
-            width: 50px;
-            text-align: right;
-            font-family: "SFMono-Regular", Menlo, monospace;
-        }
-        
-        /* Sparkline */
-        .sparkline-container {
-            background: var(--bg-primary);
-            border-radius: 6px;
-            padding: 12px;
-            border: 1px solid var(--border-color);
-        }
-        
-        .sparkline-svg {
-            width: 100%;
-            height: 80px;
-        }
-        
-        .sparkline-path {
-            fill: none;
-            stroke: var(--chart-cache);
-            stroke-width: 1.5;
-        }
-        
-        .sparkline-area {
-            fill: var(--chart-cache);
-            opacity: 0.1;
-        }
-        
-        .sparkline-marker {
-            fill: var(--accent-blue);
-            stroke: var(--bg-primary);
-            stroke-width: 2;
-        }
-        
-        .sparkline-position-line {
-            stroke: var(--accent-blue);
-            stroke-width: 1;
-            stroke-dasharray: 2,2;
-            opacity: 0.5;
-        }
-        
-        .sparkline-labels {
-            display: flex;
-            justify-content: space-between;
-            font-size: 10px;
-            color: var(--text-tertiary);
-            margin-top: 6px;
-        }
-        
-        .progress-section {
-            margin-top: 16px;
-        }
-        
-        .progress-bar-container {
-            height: 4px;
-            background: var(--bg-primary);
-            border-radius: 2px;
-            overflow: hidden;
-            margin-bottom: 6px;
-        }
-        
-        .progress-bar {
-            height: 100%;
-            background: var(--accent-blue);
-            border-radius: 2px;
-            transition: width 0.2s ease;
-        }
-        
-        .progress-label {
-            font-size: 11px;
-            color: var(--text-secondary);
-            text-align: center;
-        }
-        
-        /* Legend */
-        .legend {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-            margin-top: 12px;
-        }
-        
-        .legend-item {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            font-size: 10px;
-            color: var(--text-secondary);
-        }
-        
-        .legend-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 2px;
-        }
-        
-        .legend-dot.input { background: var(--chart-in); }
-        .legend-dot.output { background: var(--chart-out); }
-        .legend-dot.cache { background: var(--chart-cache); }
-        
-        ::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
-        }
-        
-        ::-webkit-scrollbar-track {
-            background: transparent;
-        }
-        
-        ::-webkit-scrollbar-thumb {
-            background: var(--border-color);
-            border-radius: 4px;
-        }
-        
-        ::-webkit-scrollbar-thumb:hover {
-            background: var(--text-tertiary);
-        }
-        
-        .hidden {
-            display: none !important;
-        }
-        
-        .archive-btn {
-            background: none;
-            border: 1px solid var(--border-color);
-            color: var(--text-secondary);
-            padding: 4px 8px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 11px;
-            margin-left: 8px;
-        }
-        
-        .archive-btn:hover {
-            background: var(--bg-hover);
-            color: var(--text-primary);
-        }
-        
-        .archive-btn.archived {
-            background: rgba(217, 115, 13, 0.1);
-            border-color: var(--accent-orange);
-            color: var(--accent-orange);
-        }
-        
-        .session-actions {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-        }
-    </style>
-</head>
-<body>
+    <!-- Application CSS -->
+    <link rel="stylesheet" href="/static/css/session.css" />
+  </head>
+  <body>
     <div class="container">
-        <!-- Hidden data script -->
-        <script id="session-data" type="application/json">
-{{ session_json | safe }}
-        </script>
-        
-        <div class="sidebar">
-            <div class="sidebar-header">
-                <div class="sidebar-title">
-                    <span>
-                        <a href="/" class="back-link">←</a>
-                        {{ session.summary.title }}
-                    </span>
-                    <div class="session-actions">
-                        <button class="archive-btn" id="archiveBtn" onclick="toggleArchive()" title="Archive this session">Archive</button>
-                        <button class="theme-toggle" onclick="toggleTheme()" title="Toggle dark mode">🌓</button>
-                    </div>
-                </div>
-                <input type="text" class="search-box" placeholder="Search..." id="searchBox">
+      <!-- prettier-ignore-start -->
+      <script id="session-data" type="application/json">{{ session_json | safe }}</script>
+      <!-- prettier-ignore-end -->
+
+      <div class="sidebar" id="sidebar">
+        <div class="sidebar-resize-handle" id="sidebarResizeHandle"></div>
+        <div class="sidebar-header">
+          <div class="sidebar-title">
+            <span>
+              <a
+                href="/"
+                class="back-link"
+                title="Back to sessions list"
+                onclick="if (history.length > 1) { event.preventDefault(); history.back(); }"
+                >←</a
+              >
+              {{ session.summary.title }}
+            </span>
+            <div class="session-actions">
+              <button
+                class="archive-btn"
+                id="archiveBtn"
+                onclick="toggleArchive()"
+                title="Archive this session"
+              >
+                Archive
+              </button>
+              <button
+                class="theme-toggle"
+                onclick="toggleTheme()"
+                title="Toggle dark mode"
+              >
+                🌓
+              </button>
             </div>
-            <div class="filter-row">
-                <button class="filter-btn active" data-filter="all">All</button>
-                <button class="filter-btn" data-filter="user">User</button>
-                <button class="filter-btn" data-filter="assistant">Assistant</button>
-            </div>
-            <div class="stats-row" id="stats"></div>
-            <div class="message-list" id="messageList"></div>
+          </div>
+          <input
+            type="text"
+            class="search-box"
+            placeholder="Search..."
+            id="searchBox"
+          />
         </div>
-        <div class="main-content" id="mainContent">
+        <div class="filter-row">
+          <button class="filter-btn active" data-filter="all">All</button>
+          <button class="filter-btn" data-filter="user">User</button>
+          <button class="filter-btn" data-filter="assistant">Assistant</button>
+        </div>
+        <div class="stats-row" id="stats"></div>
+        <div class="message-list" id="messageList"></div>
+      </div>
+      <div class="main-wrapper">
+        <div class="scroll-container" id="mainContent">
+          <div class="main-content">
             <div class="timeline" id="timeline">
-                <!-- Loading state removed as data is injected -->
+              <!-- Loading state removed as data is injected -->
             </div>
-        </div>
-        <div class="viz-panel" id="vizPanel">
-            <div class="viz-section">
+          </div>
+          <div class="viz-panel collapsed" id="vizPanel">
+            <div class="viz-panel-header">
+              <button
+                class="viz-panel-toggle"
+                id="vizPanelToggle"
+                onclick="toggleVizPanel()"
+                title="Expand stats panel"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                >
+                  <rect x="1.5" y="1.5" width="13" height="13" rx="2" />
+                  <line x1="10.5" y1="1.5" x2="10.5" y2="14.5" />
+                </svg>
+              </button>
+            </div>
+            <div class="viz-panel-content">
+              <div class="viz-section">
                 <div class="viz-title">Current Message Tokens</div>
                 <div class="current-tokens">
-                    <div class="token-row">
-                        <span class="token-label">Input</span>
-                        <div class="token-bar-container">
-                            <div class="token-bar input" id="inputBar" style="width: 0%"></div>
-                        </div>
-                        <span class="token-value" id="inputValue">0</span>
+                  <div class="token-row">
+                    <span class="token-label">Input</span>
+                    <div class="token-bar-container">
+                      <div
+                        class="token-bar input"
+                        id="inputBar"
+                        style="width: 0%"
+                      ></div>
                     </div>
-                    <div class="token-row">
-                        <span class="token-label">Output</span>
-                        <div class="token-bar-container">
-                            <div class="token-bar output" id="outputBar" style="width: 0%"></div>
-                        </div>
-                        <span class="token-value" id="outputValue">0</span>
+                    <span class="token-value" id="inputValue">0</span>
+                  </div>
+                  <div class="token-row">
+                    <span class="token-label">Output</span>
+                    <div class="token-bar-container">
+                      <div
+                        class="token-bar output"
+                        id="outputBar"
+                        style="width: 0%"
+                      ></div>
                     </div>
-                    <div class="token-row">
-                        <span class="token-label">Cache</span>
-                        <div class="token-bar-container">
-                            <div class="token-bar cache" id="cacheBar" style="width: 0%"></div>
-                        </div>
-                        <span class="token-value" id="cacheValue">0</span>
+                    <span class="token-value" id="outputValue">0</span>
+                  </div>
+                  <div class="token-row">
+                    <span class="token-label">Cache</span>
+                    <div class="token-bar-container">
+                      <div
+                        class="token-bar cache"
+                        id="cacheBar"
+                        style="width: 0%"
+                      ></div>
                     </div>
+                    <span class="token-value" id="cacheValue">0</span>
+                  </div>
                 </div>
                 <div class="legend">
-                    <div class="legend-item"><div class="legend-dot input"></div> Input</div>
-                    <div class="legend-item"><div class="legend-dot output"></div> Output</div>
-                    <div class="legend-item"><div class="legend-dot cache"></div> Cache</div>
+                  <div class="legend-item">
+                    <div class="legend-dot input"></div>
+                    Input
+                  </div>
+                  <div class="legend-item">
+                    <div class="legend-dot output"></div>
+                    Output
+                  </div>
+                  <div class="legend-item">
+                    <div class="legend-dot cache"></div>
+                    Cache
+                  </div>
                 </div>
-            </div>
-            
-            <div class="viz-section">
+              </div>
+
+              <div class="viz-section">
                 <div class="viz-title">Cache Read Over Time</div>
                 <div class="sparkline-container">
-                    <svg class="sparkline-svg" id="sparkline"></svg>
-                    <div class="sparkline-labels">
-                        <span>Start</span>
-                        <span>End</span>
-                    </div>
+                  <svg class="sparkline-svg" id="sparkline"></svg>
+                  <div class="sparkline-labels">
+                    <span>Start</span>
+                    <span>End</span>
+                  </div>
                 </div>
-            </div>
-            
-            <div class="viz-section">
+              </div>
+
+              <div class="viz-section">
                 <div class="viz-title">Timeline Progress</div>
                 <div class="progress-bar-container">
-                    <div class="progress-bar" id="progressBar" style="width: 0%"></div>
+                  <div
+                    class="progress-bar"
+                    id="progressBar"
+                    style="width: 0%"
+                  ></div>
                 </div>
-                <div class="progress-label" id="progressLabel">Message 0 / 0</div>
+                <div class="progress-label" id="progressLabel">
+                  Message 0 / 0
+                </div>
+              </div>
             </div>
+          </div>
         </div>
+      </div>
     </div>
-    
-    <script>
-        let SESSION_DATA = null;
-        let currentFilter = 'all';
-        let searchQuery = '';
-        let toolCounter = 0;
-        let highlightedId = null;
-        let tokenData = [];
-        let maxTokens = { input: 1, output: 1, cache: 1 };
-        let currentMessageIndex = 0;
-        let urlSearchQuery = ''; // Search query from URL (for highlighting)
-        
-        // Configure marked for GitHub Flavored Markdown
-        marked.setOptions({
-            breaks: false,
-            gfm: true
-        });
-        
-        // Get search query from URL parameters
-        function getUrlSearchQuery() {
-            const params = new URLSearchParams(window.location.search);
-            return params.get('q') || '';
-        }
-        
-        // Theme
-        function toggleTheme() {
-            document.body.classList.toggle('dark');
-            localStorage.setItem('theme', document.body.classList.contains('dark') ? 'dark' : 'light');
-            renderSparkline();
-        }
-        if (localStorage.getItem('theme') === 'dark') document.body.classList.add('dark');
-        
-        // Format time
-        function formatTime(ts) {
-            if (!ts) return '';
-            const d = new Date(ts);
-            return d.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
-        }
-        
-        function formatFullTime(ts) {
-            if (!ts) return '';
-            const d = new Date(ts);
-            return d.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}) + ' · ' + d.toLocaleDateString();
-        }
-        
-        // Escape HTML
-        function esc(text) {
-            if (!text) return '';
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-        
-        // Get preview
-        function getPreview(msg) {
-            const textPart = msg.parts?.find(p => p.type === 'text');
-            if (textPart?.text) {
-                // Return first paragraph (split by double newline or newline)
-                const text = textPart.text.trim();
-                const firstPara = text.split(/\n\s*\n/)[0]; 
-                return firstPara.length > 300 ? firstPara.substring(0, 300) + '...' : firstPara;
-            }
-            const toolPart = msg.parts?.find(p => p.type === 'tool');
-            if (toolPart) return `[${toolPart.tool}]`;
-            return msg.summary?.title || '';
-        }
-        
-        // Get full text content of a message for searching
-        function getFullText(msg) {
-            let text = '';
-            (msg.parts || []).forEach(p => {
-                if (p.type === 'text' && p.text) {
-                    text += p.text + ' ';
-                }
-            });
-            return text.toLowerCase();
-        }
-        
-        // Highlight search terms in text
-        function highlightText(text, query) {
-            if (!query) return esc(text);
-            
-            // Escape the text first
-            const escaped = esc(text);
-            
-            // Create a case-insensitive regex for the search term
-            // Escape regex special characters in the query
-            const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const regex = new RegExp(`(${escapedQuery})`, 'gi');
-            
-            return escaped.replace(regex, '<mark>$1</mark>');
-        }
-        
-        // Get a snippet around the search match
-        function getMatchSnippet(msg, query) {
-            if (!query) return null;
-            
-            const textPart = msg.parts?.find(p => p.type === 'text' && p.text);
-            if (!textPart?.text) return null;
-            
-            const text = textPart.text;
-            const lowerText = text.toLowerCase();
-            const lowerQuery = query.toLowerCase();
-            const matchIndex = lowerText.indexOf(lowerQuery);
-            
-            if (matchIndex === -1) return null;
-            
-            // Get context around the match
-            const contextSize = 100;
-            const start = Math.max(0, matchIndex - contextSize);
-            const end = Math.min(text.length, matchIndex + query.length + contextSize);
-            
-            let snippet = text.substring(start, end);
-            if (start > 0) snippet = '...' + snippet;
-            if (end < text.length) snippet = snippet + '...';
-            
-            return snippet;
-        }
-        
-        // Extract token data from message
-        function getMessageTokens(msg) {
-            let input = 0, output = 0, cache = 0;
-            (msg.parts || []).forEach(p => {
-                if (p.type === 'step-finish' && p.tokens) {
-                    input += p.tokens.input || 0;
-                    output += p.tokens.output || 0;
-                    cache += p.tokens.cache?.read || 0;
-                }
-            });
-            return { input, output, cache };
-        }
-        
-        // Build token data array
-        function buildTokenData() {
-            if (!SESSION_DATA) return;
-            tokenData = SESSION_DATA.messages.map(m => getMessageTokens(m));
-            maxTokens = {
-                input: Math.max(1, ...tokenData.map(t => t.input)),
-                output: Math.max(1, ...tokenData.map(t => t.output)),
-                cache: Math.max(1, ...tokenData.map(t => t.cache))
-            };
-        }
-        
-        // Update visualization for current message
-        function updateViz(index) {
-            if (!SESSION_DATA || tokenData.length === 0) return;
-            
-            currentMessageIndex = index;
-            const t = tokenData[index] || { input: 0, output: 0, cache: 0 };
-            
-            // Update bars
-            document.getElementById('inputBar').style.width = (t.input / maxTokens.input * 100) + '%';
-            document.getElementById('outputBar').style.width = (t.output / maxTokens.output * 100) + '%';
-            document.getElementById('cacheBar').style.width = (t.cache / maxTokens.cache * 100) + '%';
-            
-            // Update values
-            document.getElementById('inputValue').textContent = t.input.toLocaleString();
-            document.getElementById('outputValue').textContent = t.output.toLocaleString();
-            document.getElementById('cacheValue').textContent = t.cache.toLocaleString();
-            
-            // Update progress
-            const progress = ((index + 1) / SESSION_DATA.messages.length * 100);
-            document.getElementById('progressBar').style.width = progress + '%';
-            document.getElementById('progressLabel').textContent = `Message ${index + 1} / ${SESSION_DATA.messages.length}`;
-            
-            // Update sparkline marker
-            renderSparkline();
-        }
-        
-        // Render sparkline
-        function renderSparkline() {
-            if (!SESSION_DATA || tokenData.length === 0) return;
-            
-            const svg = document.getElementById('sparkline');
-            const width = svg.clientWidth || 200;
-            const height = svg.clientHeight || 80;
-            const padding = { top: 10, right: 10, bottom: 10, left: 10 };
-            const chartWidth = width - padding.left - padding.right;
-            const chartHeight = height - padding.top - padding.bottom;
-            
-            const maxCache = Math.max(1, ...tokenData.map(t => t.cache));
-            
-            // Generate points
-            const points = tokenData.map((t, i) => {
-                const x = padding.left + (i / (tokenData.length - 1 || 1)) * chartWidth;
-                const y = padding.top + chartHeight - (t.cache / maxCache) * chartHeight;
-                return { x, y };
-            });
-            
-            // Create path
-            const pathD = points.map((p, i) => (i === 0 ? 'M' : 'L') + p.x + ',' + p.y).join(' ');
-            const areaD = pathD + ` L${points[points.length-1].x},${padding.top + chartHeight} L${padding.left},${padding.top + chartHeight} Z`;
-            
-            // Current position
-            const currentX = padding.left + (currentMessageIndex / (tokenData.length - 1 || 1)) * chartWidth;
-            const currentY = points[currentMessageIndex]?.y || padding.top + chartHeight;
-            
-            svg.innerHTML = `
-                <path class="sparkline-area" d="${areaD}"/>
-                <path class="sparkline-path" d="${pathD}"/>
-                <line class="sparkline-position-line" x1="${currentX}" y1="${padding.top}" x2="${currentX}" y2="${padding.top + chartHeight}"/>
-                <circle class="sparkline-marker" cx="${currentX}" cy="${currentY}" r="5"/>
-            `;
-        }
-        
-        // Toggle tool
-        function toggleTool(id) {
-            const el = document.getElementById(id);
-            if (el) {
-                el.classList.toggle('expanded');
-                // Apply syntax highlighting to code blocks with explicit language classes
-                if (el.classList.contains('expanded')) {
-                    el.querySelectorAll('pre code[class*="language-"]:not(.hljs)').forEach((block) => {
-                        hljs.highlightElement(block);
-                    });
-                }
-            }
-        }
-        
-        // Scroll to message
-        function scrollToMessage(idx) {
-            const el = document.getElementById('msg-' + idx);
-            if (el) {
-                if (highlightedId !== null) {
-                    document.getElementById('msg-' + highlightedId)?.classList.remove('highlighted');
-                }
-                
-                el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                el.classList.add('highlighted');
-                highlightedId = idx;
-                
-                document.querySelectorAll('.message-item').forEach(item => {
-                    item.classList.toggle('active', parseInt(item.dataset.index) === idx);
-                });
-                
-                updateViz(idx);
-                
-                setTimeout(() => {
-                    el.classList.remove('highlighted');
-                }, 2000);
-            }
-        }
-        
-        // Detect visible message on scroll
-        function detectVisibleMessage() {
-            if (!SESSION_DATA) return;
-            
-            const mainContent = document.getElementById('mainContent');
-            const scrollTop = mainContent.scrollTop;
-            const viewportHeight = mainContent.clientHeight;
-            const viewportCenter = scrollTop + viewportHeight / 3;
-            
-            let closestIdx = 0;
-            let closestDist = Infinity;
-            
-            SESSION_DATA.messages.forEach((_, i) => {
-                const el = document.getElementById('msg-' + i);
-                if (el) {
-                    const rect = el.getBoundingClientRect();
-                    const elTop = el.offsetTop;
-                    const dist = Math.abs(elTop - viewportCenter);
-                    if (dist < closestDist) {
-                        closestDist = dist;
-                        closestIdx = i;
-                    }
-                }
-            });
-            
-            if (closestIdx !== currentMessageIndex) {
-                updateViz(closestIdx);
-                
-                document.querySelectorAll('.message-item').forEach(item => {
-                    item.classList.toggle('active', parseInt(item.dataset.index) === closestIdx);
-                });
-            }
-        }
 
-        // Copy markdown to clipboard
-        function copyMarkdown(idx) {
-            const msg = SESSION_DATA.messages[idx];
-            if (!msg) return;
-
-            let markdown = "";
-            (msg.parts || []).forEach(p => {
-                if (p.type === 'text' && p.text) {
-                    markdown += p.text + "\n\n";
-                } else if (p.type === 'tool') {
-                    const st = p.state || {};
-                    markdown += `> **Tool: ${p.tool}**\n`;
-                    if (st.title) markdown += `> ${st.title}\n`;
-                    if (st.input) markdown += "```json\n" + JSON.stringify(st.input, null, 2) + "\n```\n";
-                    if (st.output) {
-                        markdown += "#### Output\n";
-                        markdown += "```\n" + (typeof st.output === 'string' ? st.output : JSON.stringify(st.output, null, 2)) + "\n```\n";
-                    }
-                    markdown += "\n";
-                }
-            });
-
-            navigator.clipboard.writeText(markdown.trim()).then(() => {
-                const btn = document.querySelector(`#msg-${idx} .copy-btn`);
-                const originalHtml = btn.innerHTML;
-                btn.innerHTML = '<span>✅</span> Copied';
-                btn.style.borderColor = 'var(--accent-green)';
-                btn.style.color = 'var(--accent-green)';
-                setTimeout(() => {
-                    btn.innerHTML = originalHtml;
-                    btn.style.borderColor = '';
-                    btn.style.color = '';
-                }, 2000);
-            }).catch(err => {
-                console.error('Failed to copy: ', err);
-            });
-        }
-        
-        // Render sidebar list
-        function renderSidebar() {
-            if (!SESSION_DATA) return;
-            
-            // Determine which search query to use for filtering
-            const activeSearch = searchQuery || urlSearchQuery;
-            
-            const filtered = SESSION_DATA.messages.filter((m, i) => {
-                if (currentFilter !== 'all' && m.role !== currentFilter) return false;
-                
-                const preview = getPreview(m);
-                // Filter out bracketed previews like [bash], [edit], etc.
-                if (/^\[.*?\]$/.test(preview.trim())) return false;
-                
-                if (activeSearch) {
-                    // Search in full message text, not just preview
-                    const fullText = getFullText(m);
-                    if (!fullText.includes(activeSearch.toLowerCase())) return false;
-                }
-                return true;
-            });
-            
-            const list = document.getElementById('messageList');
-            list.innerHTML = filtered.map(m => {
-                const idx = SESSION_DATA.messages.indexOf(m);
-                
-                // Determine what to show as preview
-                let previewHtml;
-                if (activeSearch) {
-                    // Try to get a snippet around the match
-                    const snippet = getMatchSnippet(m, activeSearch);
-                    if (snippet) {
-                        previewHtml = highlightText(snippet, activeSearch);
-                    } else {
-                        previewHtml = highlightText(getPreview(m), activeSearch);
-                    }
-                } else {
-                    previewHtml = esc(getPreview(m));
-                }
-                
-                return `
-                    <div class="message-item" data-index="${idx}" onclick="scrollToMessage(${idx})">
-                        <div class="message-item-header">
-                            <span class="role-badge ${m.role}">${m.role}</span>
-                            <span class="message-time">${formatTime(m.time_created)}</span>
-                        </div>
-                        <div class="message-preview">${previewHtml}</div>
-                    </div>
-                `;
-            }).join('');
-        }
-        
-        // Render search indicator when URL has search query
-        function renderSearchIndicator() {
-            const container = document.querySelector('.filter-row');
-            const existingIndicator = document.querySelector('.search-active-indicator');
-            
-            if (existingIndicator) {
-                existingIndicator.remove();
-            }
-            
-            if (urlSearchQuery && !searchQuery) {
-                const indicator = document.createElement('div');
-                indicator.className = 'search-active-indicator';
-                indicator.innerHTML = `
-                    <span>Filtered by: "${esc(urlSearchQuery)}"</span>
-                    <button class="clear-search" onclick="clearUrlSearch()" title="Clear search filter">×</button>
-                `;
-                container.parentNode.insertBefore(indicator, container.nextSibling);
-            }
-        }
-        
-        // Clear URL search and show all messages
-        function clearUrlSearch() {
-            urlSearchQuery = '';
-            // Update URL without the query parameter
-            const url = new URL(window.location);
-            url.searchParams.delete('q');
-            window.history.replaceState({}, '', url);
-            
-            renderSearchIndicator();
-            renderSidebar();
-        }
-        
-        // Render part
-        function renderPart(part) {
-            // Check for reasoning types
-            const isReasoning = 
-                (part.type === 'reasoning' && part.text) || 
-                (part.type === 'tool' && part.tool === 'task' && part.state?.input?.subagent_type);
-
-            if (isReasoning) {
-                // Determine content based on reasoning type
-                let content = '';
-                let label = '';
-                
-                if (part.type === 'reasoning') {
-                    label = 'Thinking Process';
-                    content = DOMPurify.sanitize(marked.parse(part.text));
-                } else {
-                    // It's a subtask (tool call)
-                    const st = part.state || {};
-                    const prompt = st.input?.prompt || st.input?.description || '';
-                    const result = st.output || '';
-                    const subagent = st.input?.subagent_type || 'task';
-                    
-                    label = `Subtask: ${subagent}`;
-                    
-                    // Format subtask content
-                    const resultText = typeof result === 'string' ? result : JSON.stringify(result, null, 2);
-                    content = `
-                        <div class="subtask-prompt"><strong>Task:</strong> ${esc(prompt)}</div>
-                        ${result ? `<div class="subtask-result">${DOMPurify.sanitize(marked.parse(resultText))}</div>` : ''}
-                    `;
-                }
-
-                return `
-                    <div class="part part-reasoning">
-                        <div class="reasoning-label"><span>${part.type === 'reasoning' ? '🧠' : '🤖'}</span> ${label}</div>
-                        <div class="part-text">${content}</div>
-                    </div>
-                `;
-            }
-
-            if (part.type === 'text' && part.text) {
-                // Skip synthetic text parts (these are tool call echoes that shouldn't be rendered as text)
-                if (part.synthetic) {
-                    return '';
-                }
-                // Parse markdown and sanitize HTML
-                const cleanHtml = DOMPurify.sanitize(marked.parse(part.text));
-                return `<div class="part"><div class="part-text">${cleanHtml}</div></div>`;
-            }
-            
-            if (part.type === 'tool') {
-                // If this was handled as reasoning/subtask, skip it here
-                const isSubtask = part.tool === 'task' && part.state?.input?.subagent_type;
-                if (isSubtask) return '';
-
-                const st = part.state || {};
-                const id = 'tool-' + (toolCounter++);
-                const outputText = st.output ? (typeof st.output === 'string' ? st.output : JSON.stringify(st.output, null, 2)) : '';
-                
-                // Determine if this tool should have syntax highlighting
-                // File operations (read, write, edit, glob, grep) should NOT have highlighting
-                const noHighlightTools = ['read', 'write', 'edit', 'glob', 'grep', 'mcp_read', 'mcp_write', 'mcp_edit', 'mcp_glob', 'mcp_grep'];
-                const toolName = (part.tool || '').toLowerCase();
-                const skipHighlight = noHighlightTools.some(t => toolName.includes(t));
-                
-                // Only apply JSON highlighting to input if it's not a file operation tool
-                const inputLangClass = skipHighlight ? '' : 'language-json';
-                
-                return `
-                    <div class="part part-tool">
-                        <div class="tool-header" onclick="toggleTool('${id}')">
-                            <span>
-                                <span class="tool-name">${esc(part.tool)}</span>
-                                <span class="tool-summary">${esc(st.title || '')}</span>
-                            </span>
-                            <span class="tool-status">${st.status || ''}</span>
-                        </div>
-                        <div class="tool-body" id="${id}">
-                            ${st.input ? `
-                                <div class="tool-section">
-                                    <div class="tool-section-label">Input</div>
-                                    <pre class="tool-code"><code class="${inputLangClass}">${esc(JSON.stringify(st.input, null, 2))}</code></pre>
-                                </div>
-                            ` : ''}
-                            ${st.output ? `
-                                <div class="tool-section">
-                                    <div class="tool-section-label">Output</div>
-                                    <pre class="tool-code"><code>${esc(outputText)}</code></pre>
-                                </div>
-                            ` : ''}
-                        </div>
-                    </div>
-                `;
-            }
-            
-            if (part.type === 'step-start') {
-                return `<div class="part part-step">▶ Step started</div>`;
-            }
-            
-            if (part.type === 'step-finish') {
-                const t = part.tokens || {};
-                return `
-                    <div class="part part-step">
-                        ✓ Step finished (${part.reason || ''})
-                        ${t.input ? `<span class="token-badge">In: ${t.input.toLocaleString()}</span>` : ''}
-                        ${t.output ? `<span class="token-badge">Out: ${t.output.toLocaleString()}</span>` : ''}
-                        ${t.cache?.read ? `<span class="token-badge">Cache: ${t.cache.read.toLocaleString()}</span>` : ''}
-                    </div>
-                `;
-            }
-            
-            return '';
-        }
-        
-        // Render timeline
-        function renderTimeline() {
-            if (!SESSION_DATA) return;
-            
-            toolCounter = 0;
-            const timeline = document.getElementById('timeline');
-            timeline.innerHTML = SESSION_DATA.messages
-                .filter(m => !/^\[.*?\]$/.test(getPreview(m).trim()))
-                .map((m, i) => {
-                    // We need to use the original index to keep links working
-                    const originalIdx = SESSION_DATA.messages.indexOf(m);
-                    return `
-                        <div class="message ${m.role}" id="msg-${originalIdx}">
-                            <div class="message-header">
-                                <div class="message-header-left">
-                                    <span class="role-badge ${m.role}">${m.role}</span>
-                                    <span class="message-meta">
-                                        <span>${formatFullTime(m.time_created)}</span>
-                                        ${m.modelID ? `<span>${m.modelID}</span>` : ''}
-                                        ${m.agent ? `<span>${m.agent}</span>` : ''}
-                                    </span>
-                                </div>
-                                <button class="copy-btn" onclick="copyMarkdown(${originalIdx})" title="Copy markdown to clipboard">
-                                    <span>📋</span> Copy
-                                </button>
-                            </div>
-                            <div class="message-body">
-                                ${(m.parts || []).map(p => renderPart(p)).join('') || '<span style="color:var(--text-tertiary)">(no content)</span>'}
-                            </div>
-                        </div>
-                    `;
-                }).join('');
-            
-            // Apply syntax highlighting to all code blocks
-            applySyntaxHighlighting();
-        }
-        
-        // Apply syntax highlighting to code blocks
-        function applySyntaxHighlighting() {
-            // Find all code blocks inside pre elements that haven't been highlighted yet
-            // Only highlight blocks that have a language class specified (e.g., language-javascript)
-            document.querySelectorAll('pre code:not(.hljs)').forEach((block) => {
-                // Check if the block has a language class
-                const langClass = Array.from(block.classList).find(cls => cls.startsWith('language-'));
-                
-                if (langClass) {
-                    const lang = langClass.replace('language-', '');
-                    // Only highlight if we have a valid language (not empty)
-                    if (lang && hljs.getLanguage(lang)) {
-                        hljs.highlightElement(block);
-                    }
-                }
-            });
-        }
-        
-        // Update stats
-        function updateStats() {
-            if (!SESSION_DATA) return;
-            const total = SESSION_DATA.messages.length;
-            const user = SESSION_DATA.messages.filter(m => m.role === 'user').length;
-            const asst = SESSION_DATA.messages.filter(m => m.role === 'assistant').length;
-            document.getElementById('stats').innerHTML = `
-                <span>${total} total</span>
-                <span>${user} user</span>
-                <span>${asst} assistant</span>
-            `;
-        }
-        
-        // Load data
-        function loadData(data) {
-            SESSION_DATA = data;
-            
-            // Initialize URL search query
-            urlSearchQuery = getUrlSearchQuery();
-            if (urlSearchQuery) {
-                // Pre-populate the search box with the query
-                document.getElementById('searchBox').value = urlSearchQuery;
-            }
-            
-            buildTokenData();
-            updateStats();
-            renderSearchIndicator();
-            renderSidebar();
-            renderTimeline();
-            updateViz(0);
-            
-            // Add scroll listener
-            document.getElementById('mainContent').addEventListener('scroll', detectVisibleMessage);
-            
-            // If there's a URL search query, scroll to first matching message
-            if (urlSearchQuery) {
-                const firstMatch = SESSION_DATA.messages.findIndex(m => {
-                    const fullText = getFullText(m);
-                    return fullText.includes(urlSearchQuery.toLowerCase());
-                });
-                if (firstMatch !== -1) {
-                    setTimeout(() => scrollToMessage(firstMatch), 100);
-                }
-            }
-        }
-        
-        // Filter buttons
-        document.querySelectorAll('.filter-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                currentFilter = btn.dataset.filter;
-                renderSidebar();
-            });
-        });
-        
-        // Search
-        document.getElementById('searchBox').addEventListener('input', (e) => {
-            searchQuery = e.target.value.toLowerCase();
-            
-            // If user clears the search box, restore URL search behavior
-            if (!searchQuery && urlSearchQuery) {
-                renderSearchIndicator();
-            } else if (searchQuery) {
-                // Hide the URL search indicator when user is typing
-                const indicator = document.querySelector('.search-active-indicator');
-                if (indicator) indicator.remove();
-            }
-            
-            renderSidebar();
-        });
-        
-        // Resize handler for sparkline
-        window.addEventListener('resize', () => {
-            renderSparkline();
-        });
-        
-        // Archive functionality
-        let isArchived = false;
-        
-        async function checkArchiveStatus() {
-            if (!SESSION_DATA) return;
-            try {
-                const response = await fetch(`/api/session/${SESSION_DATA.summary.id}/archived`);
-                const data = await response.json();
-                isArchived = data.archived;
-                updateArchiveButton();
-            } catch (e) {
-                console.error('Failed to check archive status:', e);
-            }
-        }
-        
-        function updateArchiveButton() {
-            const btn = document.getElementById('archiveBtn');
-            if (isArchived) {
-                btn.textContent = 'Archived';
-                btn.classList.add('archived');
-                btn.title = 'Unarchive this session';
-            } else {
-                btn.textContent = 'Archive';
-                btn.classList.remove('archived');
-                btn.title = 'Archive this session';
-            }
-        }
-        
-        async function toggleArchive() {
-            if (!SESSION_DATA) return;
-            
-            const btn = document.getElementById('archiveBtn');
-            btn.disabled = true;
-            
-            try {
-                const action = isArchived ? 'unarchive' : 'archive';
-                const response = await fetch(`/api/session/${SESSION_DATA.summary.id}/${action}`, {
-                    method: 'POST'
-                });
-                
-                if (response.ok) {
-                    isArchived = !isArchived;
-                    updateArchiveButton();
-                    
-                    // If archiving, redirect to dashboard after a short delay
-                    if (isArchived) {
-                        btn.textContent = 'Redirecting...';
-                        setTimeout(() => {
-                            window.location.href = '/';
-                        }, 500);
-                    }
-                } else {
-                    console.error('Failed to toggle archive status');
-                }
-            } catch (e) {
-                console.error('Failed to toggle archive:', e);
-            } finally {
-                btn.disabled = false;
-            }
-        }
-        
-        // Load data from script tag
-        try {
-            const jsonText = document.getElementById('session-data').textContent;
-            const INITIAL_DATA = JSON.parse(jsonText);
-            if (INITIAL_DATA) {
-                loadData(INITIAL_DATA);
-                // Check archive status after loading
-                checkArchiveStatus();
-            }
-        } catch (e) {
-            console.error("Failed to parse session data:", e);
-        }
-    </script>
-</body>
+    <!-- Application JavaScript -->
+    <script src="/static/js/session.js"></script>
+  </body>
 </html>
