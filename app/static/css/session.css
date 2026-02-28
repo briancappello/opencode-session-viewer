@@ -124,9 +124,19 @@ body {
   font-size: 16px; /* override base 18px for sidebar density */
 }
 
-.search-box {
+.filter-label {
+  font-size: 11px;
+  color: var(--accent-blue);
+  margin-bottom: 5px;
+}
+
+.filter-wrapper {
+  position: relative;
+}
+
+.filter-box {
   width: 100%;
-  padding: 6px 10px;
+  padding: 6px 28px 6px 10px; /* right padding leaves room for the × */
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
   border-radius: 4px;
@@ -134,13 +144,44 @@ body {
   font-size: 13px;
 }
 
-.search-box:focus {
+.filter-box:focus {
   outline: none;
   border-color: var(--accent-blue);
 }
 
-.search-box::placeholder {
+.filter-box::placeholder {
   color: var(--text-tertiary);
+}
+
+.filter-clear {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 4px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition:
+    color 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.filter-clear:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.filter-clear:disabled {
+  opacity: 0.25;
+  cursor: default;
 }
 
 .filter-row {
@@ -241,35 +282,6 @@ body {
   color: var(--text-primary);
   padding: 1px 2px;
   border-radius: 2px;
-}
-
-.search-active-indicator {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  margin: 8px 14px;
-  background: rgba(35, 131, 226, 0.1);
-  border: 1px solid rgba(35, 131, 226, 0.3);
-  border-radius: 4px;
-  font-size: 12px;
-  color: var(--accent-blue);
-}
-
-.search-active-indicator .clear-search {
-  margin-left: auto;
-  background: none;
-  border: none;
-  color: var(--text-secondary);
-  cursor: pointer;
-  font-size: 14px;
-  padding: 2px 6px;
-  border-radius: 3px;
-}
-
-.search-active-indicator .clear-search:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
 }
 
 /* =============================================================================

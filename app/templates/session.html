@@ -53,12 +53,26 @@
       <div class="sidebar" id="sidebar">
         <div class="sidebar-resize-handle" id="sidebarResizeHandle"></div>
         <div class="sidebar-header">
-          <input
-            type="text"
-            class="search-box"
-            placeholder="Search..."
-            id="searchBox"
-          />
+          <label class="filter-label" id="filterLabel" style="display:none"
+            >Filtered by:</label
+          >
+          <div class="filter-wrapper">
+            <input
+              type="text"
+              class="filter-box"
+              placeholder="Filter..."
+              id="filterBox"
+            />
+            <button
+              class="filter-clear"
+              id="filterClear"
+              onclick="clearFilter()"
+              title="Clear filter"
+              disabled
+            >
+              ×
+            </button>
+          </div>
         </div>
         <div class="filter-row">
           <button class="filter-btn active" data-filter="all">All</button>

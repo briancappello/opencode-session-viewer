@@ -3,7 +3,7 @@
 
 let SESSION_DATA = null;
 let currentFilter = "all";
-let searchQuery = "";
+let filterQuery = "";
 let toolCounter = 0;
 let highlightedId = null;
 let tokenData = [];
@@ -157,7 +157,7 @@ function getPreview(msg) {
   return msg.summary?.title || "";
 }
 
-// Get full text content of a message for searching
+// Get full text content of a message for filtering
 function getFullText(msg) {
   let text = "";
   (msg.parts || []).forEach((p) => {
@@ -168,14 +168,14 @@ function getFullText(msg) {
   return text.toLowerCase();
 }
 
-// Highlight search terms in text
+// Highlight filter terms in text
 function highlightText(text, query) {
   if (!query) return esc(text);
 
   // Escape the text first
   const escaped = esc(text);
 
-  // Create a case-insensitive regex for the search term
+  // Create a case-insensitive regex for the filter term
   // Escape regex special characters in the query
   const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const regex = new RegExp(`(${escapedQuery})`, "gi");
@@ -183,7 +183,7 @@ function highlightText(text, query) {
   return escaped.replace(regex, "<mark>$1</mark>");
 }
 
-// Get a snippet around the search match
+// Get a snippet around the filter match
 function getMatchSnippet(msg, query) {
   if (!query) return null;
 
@@ -437,8 +437,8 @@ function copyMarkdown(idx) {
 function renderSidebar() {
   if (!SESSION_DATA) return;
 
-  // Determine which search query to use for filtering
-  const activeSearch = searchQuery || urlSearchQuery;
+  // Determine which query to use for filtering (typed filter takes precedence over URL search)
+  const activeSearch = filterQuery || urlSearchQuery;
 
   const filtered = SESSION_DATA.messages.filter((m, i) => {
     if (currentFilter !== "all" && m.role !== currentFilter) return false;
@@ -448,7 +448,7 @@ function renderSidebar() {
     if (/^\[.*?\]$/.test(preview.trim())) return false;
 
     if (activeSearch) {
-      // Search in full message text, not just preview
+      // Filter on full message text, not just preview
       const fullText = getFullText(m);
       if (!fullText.includes(activeSearch.toLowerCase())) return false;
     }
@@ -463,7 +463,7 @@ function renderSidebar() {
       // Determine what to show as preview
       let previewHtml;
       if (activeSearch) {
-        // Try to get a snippet around the match
+        // Try to get a snippet around the filter match
         const snippet = getMatchSnippet(m, activeSearch);
         if (snippet) {
           previewHtml = highlightText(snippet, activeSearch);
@@ -487,35 +487,35 @@ function renderSidebar() {
     .join("");
 }
 
-// Render search indicator when URL has search query
-function renderSearchIndicator() {
-  const container = document.querySelector(".filter-row");
-  const existingIndicator = document.querySelector(".search-active-indicator");
+// Update the filter clear button and label state
+function renderFilterIndicator() {
+  const label = document.getElementById("filterLabel");
+  const clearBtn = document.getElementById("filterClear");
+  const hasFilter = filterQuery || urlSearchQuery;
 
-  if (existingIndicator) {
-    existingIndicator.remove();
-  }
+  clearBtn.disabled = !hasFilter;
 
-  if (urlSearchQuery && !searchQuery) {
-    const indicator = document.createElement("div");
-    indicator.className = "search-active-indicator";
-    indicator.innerHTML = `
-            <span>Filtered by: "${esc(urlSearchQuery)}"</span>
-            <button class="clear-search" onclick="clearUrlSearch()" title="Clear search filter">×</button>
-        `;
-    container.parentNode.insertBefore(indicator, container.nextSibling);
+  if (urlSearchQuery && !filterQuery) {
+    label.textContent = `Filtered by: "${esc(urlSearchQuery)}"`;
+    label.style.display = "block";
+  } else {
+    label.style.display = "none";
   }
 }
 
-// Clear URL search and show all messages
-function clearUrlSearch() {
-  urlSearchQuery = "";
-  // Update URL without the query parameter
-  const url = new URL(window.location);
-  url.searchParams.delete("q");
-  window.history.replaceState({}, "", url);
+// Clear all active filters (typed input and URL-driven)
+function clearFilter() {
+  filterQuery = "";
+  document.getElementById("filterBox").value = "";
 
-  renderSearchIndicator();
+  if (urlSearchQuery) {
+    urlSearchQuery = "";
+    const url = new URL(window.location);
+    url.searchParams.delete("q");
+    window.history.replaceState({}, "", url);
+  }
+
+  renderFilterIndicator();
   renderSidebar();
 }
 
@@ -736,16 +736,16 @@ function updateStats() {
 function loadData(data) {
   SESSION_DATA = data;
 
-  // Initialize URL search query
+  // Initialize URL search query (passed in from dashboard search)
   urlSearchQuery = getUrlSearchQuery();
   if (urlSearchQuery) {
-    // Pre-populate the search box with the query
-    document.getElementById("searchBox").value = urlSearchQuery;
+    // Pre-populate the filter box with the incoming query
+    document.getElementById("filterBox").value = urlSearchQuery;
   }
 
   buildTokenData();
   updateStats();
-  renderSearchIndicator();
+  renderFilterIndicator();
   renderSidebar();
   renderTimeline();
   updateViz(0);
@@ -872,19 +872,10 @@ function initSession() {
     });
   });
 
-  // Set up search
-  document.getElementById("searchBox").addEventListener("input", (e) => {
-    searchQuery = e.target.value.toLowerCase();
-
-    // If user clears the search box, restore URL search behavior
-    if (!searchQuery && urlSearchQuery) {
-      renderSearchIndicator();
-    } else if (searchQuery) {
-      // Hide the URL search indicator when user is typing
-      const indicator = document.querySelector(".search-active-indicator");
-      if (indicator) indicator.remove();
-    }
-
+  // Set up filter input
+  document.getElementById("filterBox").addEventListener("input", (e) => {
+    filterQuery = e.target.value.toLowerCase();
+    renderFilterIndicator();
     renderSidebar();
   });
 
