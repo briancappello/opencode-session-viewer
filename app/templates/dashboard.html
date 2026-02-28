@@ -4,349 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>OpenCode Sessions</title>
-    <style>
-      * {
-        box-sizing: border-box;
-        margin: 0;
-        padding: 0;
-      }
-
-      :root {
-        --bg-primary: #ffffff;
-        --bg-secondary: #f7f6f3;
-        --bg-hover: #efefef;
-        --bg-selected: #e8e7e4;
-        --text-primary: #37352f;
-        --text-secondary: #787774;
-        --text-tertiary: #9b9a97;
-        --accent-blue: #2383e2;
-        --border-color: #e9e9e7;
-      }
-
-      .dark {
-        --bg-primary: #191919;
-        --bg-secondary: #202020;
-        --bg-hover: #2f2f2f;
-        --bg-selected: #363636;
-        --text-primary: #e6e6e6;
-        --text-secondary: #9b9b9b;
-        --text-tertiary: #6b6b6b;
-        --border-color: #2f2f2f;
-      }
-
-      body {
-        font-family:
-          ui-sans-serif,
-          -apple-system,
-          BlinkMacSystemFont,
-          "Segoe UI",
-          Helvetica,
-          Arial,
-          sans-serif;
-        background: var(--bg-primary);
-        color: var(--text-primary);
-        line-height: 1.6;
-        font-size: 14px;
-        padding: 20px;
-      }
-
-      .container {
-        max-width: 1000px;
-        margin: 0 auto;
-      }
-
-      .header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 24px;
-        padding-bottom: 16px;
-        border-bottom: 1px solid var(--border-color);
-      }
-
-      .title {
-        font-size: 20px;
-        font-weight: 600;
-      }
-
-      .controls {
-        display: flex;
-        gap: 12px;
-        align-items: center;
-      }
-
-      .toggle-btn {
-        background: none;
-        border: 1px solid var(--border-color);
-        color: var(--text-secondary);
-        padding: 6px 12px;
-        border-radius: 6px;
-        cursor: pointer;
-        font-size: 13px;
-        text-decoration: none;
-      }
-
-      .toggle-btn:hover {
-        background: var(--bg-hover);
-        color: var(--text-primary);
-      }
-
-      .toggle-btn.active {
-        background: var(--bg-selected);
-        color: var(--text-primary);
-        border-color: var(--text-tertiary);
-      }
-
-      .theme-toggle {
-        background: none;
-        border: none;
-        cursor: pointer;
-        font-size: 18px;
-        padding: 4px;
-      }
-
-      .session-list {
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-      }
-
-      .session-item {
-        display: block;
-        position: relative;
-        background: var(--bg-secondary);
-        padding: 16px;
-        border-radius: 8px;
-        border: 1px solid var(--border-color);
-        transition: all 0.2s ease;
-      }
-
-      .session-item:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-        border-color: var(--accent-blue);
-      }
-
-      .session-item-link {
-        display: block;
-        text-decoration: none;
-        color: inherit;
-      }
-
-      .session-item .archive-link {
-        position: absolute;
-        bottom: 12px;
-        right: 12px;
-        font-size: 11px;
-        color: var(--text-tertiary);
-        text-decoration: none;
-        opacity: 0;
-        transition: opacity 0.2s ease;
-        padding: 4px 8px;
-        border-radius: 4px;
-      }
-
-      .session-item:hover .archive-link {
-        opacity: 1;
-      }
-
-      .session-item .archive-link:hover {
-        color: var(--accent-orange);
-        background: rgba(217, 115, 13, 0.1);
-      }
-
-      .session-header {
-        display: flex;
-        justify-content: space-between;
-        margin-bottom: 8px;
-      }
-
-      .session-title {
-        font-weight: 600;
-        font-size: 15px;
-        color: var(--text-primary);
-      }
-
-      .session-time {
-        font-size: 12px;
-        color: var(--text-tertiary);
-        white-space: nowrap;
-        margin-left: 12px;
-      }
-
-      .session-meta {
-        display: flex;
-        gap: 16px;
-        font-size: 12px;
-        color: var(--text-secondary);
-      }
-
-      .meta-item {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-      }
-
-      .directory {
-        font-family: monospace;
-        background: rgba(0, 0, 0, 0.05);
-        padding: 2px 6px;
-        border-radius: 4px;
-      }
-
-      .dark .directory {
-        background: rgba(255, 255, 255, 0.05);
-      }
-
-      .empty-state {
-        text-align: center;
-        padding: 40px;
-        color: var(--text-secondary);
-      }
-
-      /* Search styles */
-      .search-container {
-        margin-bottom: 8px;
-        display: flex;
-        gap: 12px;
-        flex-wrap: wrap;
-      }
-
-      .search-input {
-        flex: 1;
-        min-width: 300px;
-        padding: 10px 14px;
-        border: 1px solid var(--border-color);
-        border-radius: 6px;
-        background: var(--bg-secondary);
-        color: var(--text-primary);
-        font-size: 14px;
-      }
-
-      .search-input:focus {
-        outline: none;
-        border-color: var(--accent-blue);
-      }
-
-      .search-input::placeholder {
-        color: var(--text-tertiary);
-      }
-
-      .directory-select {
-        padding: 10px 14px;
-        border: 1px solid var(--border-color);
-        border-radius: 6px;
-        background: var(--bg-secondary);
-        color: var(--text-primary);
-        font-size: 14px;
-        width: 250px;
-        flex-shrink: 0;
-      }
-
-      .directory-select:focus {
-        outline: none;
-        border-color: var(--accent-blue);
-      }
-
-      .search-btn {
-        padding: 10px 20px;
-        background: var(--accent-blue);
-        color: white;
-        border: none;
-        border-radius: 6px;
-        cursor: pointer;
-        font-size: 14px;
-        font-weight: 500;
-      }
-
-      .search-btn:hover {
-        opacity: 0.9;
-      }
-
-      .search-btn:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-      }
-
-      .clear-btn {
-        padding: 10px 16px;
-        background: var(--bg-hover);
-        color: var(--text-secondary);
-        border: 1px solid var(--border-color);
-        border-radius: 6px;
-        cursor: pointer;
-        font-size: 14px;
-      }
-
-      .clear-btn:hover {
-        background: var(--bg-selected);
-      }
-
-      .search-results-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 12px;
-        padding: 8px 0;
-        color: var(--text-secondary);
-        font-size: 13px;
-      }
-
-      .match-snippet {
-        margin-top: 8px;
-        padding: 8px 12px;
-        background: rgba(0, 0, 0, 0.03);
-        border-radius: 4px;
-        font-size: 13px;
-        color: var(--text-secondary);
-        border-left: 3px solid var(--accent-blue);
-      }
-
-      .dark .match-snippet {
-        background: rgba(255, 255, 255, 0.03);
-      }
-
-      .match-snippet mark {
-        background: rgba(35, 131, 226, 0.3);
-        color: var(--text-primary);
-        padding: 1px 2px;
-        border-radius: 2px;
-      }
-
-      .match-role {
-        font-size: 11px;
-        text-transform: uppercase;
-        color: var(--text-tertiary);
-        margin-bottom: 4px;
-      }
-
-      .hidden {
-        display: none !important;
-      }
-
-      .search-options {
-        display: flex;
-        align-items: center;
-        gap: 16px;
-        margin-bottom: 16px;
-      }
-
-      .checkbox-label {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        color: var(--text-secondary);
-        font-size: 13px;
-        cursor: pointer;
-        user-select: none;
-      }
-
-      .checkbox-label input[type="checkbox"] {
-        width: 14px;
-        height: 14px;
-        cursor: pointer;
-      }
-    </style>
+    <link rel="stylesheet" href="/static/css/base.css" />
+    <link rel="stylesheet" href="/static/css/dashboard.css" />
   </head>
   <body>
     <div class="container">
@@ -384,6 +43,9 @@
         </select>
         <button onclick="performSearch()" class="search-btn" id="searchBtn">
           Search
+        </button>
+        <button onclick="syncIndex()" class="sync-btn" id="syncBtn">
+          Sync
         </button>
         <button onclick="clearSearch()" class="clear-btn hidden" id="clearBtn">
           Clear
@@ -671,6 +333,37 @@
           link.textContent = "Archive";
           link.style.pointerEvents = "";
           console.error("Failed to archive:", e);
+        }
+      }
+
+      // Sync index on demand
+      async function syncIndex() {
+        const btn = document.getElementById("syncBtn");
+        btn.disabled = true;
+        btn.textContent = "Syncing...";
+
+        try {
+          const response = await fetch("/api/sync", { method: "POST" });
+          if (response.ok) {
+            btn.textContent = "Synced ✓";
+            // Reload the page after a short pause so the session list refreshes
+            setTimeout(() => {
+              window.location.reload();
+            }, 800);
+          } else {
+            btn.textContent = "Error";
+            setTimeout(() => {
+              btn.textContent = "Sync";
+              btn.disabled = false;
+            }, 2000);
+          }
+        } catch (e) {
+          console.error("Sync failed:", e);
+          btn.textContent = "Error";
+          setTimeout(() => {
+            btn.textContent = "Sync";
+            btn.disabled = false;
+          }, 2000);
         }
       }
 

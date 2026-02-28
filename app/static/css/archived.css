@@ -1,0 +1,96 @@
+/* =============================================================================
+   Archived page layout
+   ============================================================================= */
+
+body {
+  padding: 20px;
+}
+
+.container {
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+/* =============================================================================
+   Header
+   ============================================================================= */
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.title {
+  font-size: 20px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+/* =============================================================================
+   Archived badge
+   ============================================================================= */
+
+.archived-badge {
+  font-size: 12px;
+  padding: 2px 8px;
+  background: rgba(217, 115, 13, 0.1);
+  color: var(--accent-orange);
+  border-radius: 4px;
+}
+
+/* =============================================================================
+   Session list items (archived-specific layout)
+   ============================================================================= */
+
+.session-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+}
+
+.session-content {
+  flex: 1;
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+
+/* =============================================================================
+   Unarchive button
+   ============================================================================= */
+
+.unarchive-btn {
+  background: none;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.unarchive-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--accent-blue);
+}
+
+.unarchive-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

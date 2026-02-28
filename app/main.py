@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -17,13 +18,13 @@ from app.services import (
     load_session_export,
     search_sessions,
 )
-from app.sync import sync_search_index
+from app.sync import sync_search_index as _sync_search_index
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan: sync search index on startup."""
-    sync_search_index()
+    _sync_search_index()
     yield
 
 
@@ -91,6 +92,13 @@ async def api_directories():
     """Get list of unique directories for filtering."""
     directories = list_directories()
     return JSONResponse(content=directories)
+
+
+@app.post("/api/sync")
+async def api_sync():
+    """Trigger an incremental sync of the search index from the source database."""
+    await run_in_threadpool(_sync_search_index)
+    return JSONResponse(content={"status": "ok"})
 
 
 @app.post("/api/session/{session_id}/archive")
