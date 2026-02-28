@@ -23,7 +23,8 @@ function getUrlSearchQuery() {
     return params.get("q") || "";
 }
 
-// Theme
+// Theme — toggleTheme() is provided by base.js; override it here to also
+// re-render the sparkline when the colour scheme changes.
 function toggleTheme() {
     document.body.classList.toggle("dark");
     localStorage.setItem(
@@ -31,11 +32,6 @@ function toggleTheme() {
         document.body.classList.contains("dark") ? "dark" : "light"
     );
     renderSparkline();
-}
-
-// Initialize theme from localStorage
-if (localStorage.getItem("theme") === "dark") {
-    document.body.classList.add("dark");
 }
 
 // Sidebar resize functionality
