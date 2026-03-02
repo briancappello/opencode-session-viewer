@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # setup.sh — One-time setup: creates the prod git worktree, installs dependencies,
-#             and installs + enables the systemd user service.
+#             installs + enables the service (systemd on Linux, launchd on macOS),
+#             and configures nginx reverse proxy with HTTPS.
 #
 # Run this once from the dev repo root (or from anywhere — it uses its own path).
 # Safe to re-run: each step checks whether it's already been done.
@@ -8,15 +9,29 @@
 set -euo pipefail
 
 # ---------------------------------------------------------------------------
-# Paths
+# Paths & Configuration
 # ---------------------------------------------------------------------------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEV_DIR="$SCRIPT_DIR"
 PROD_DIR="${HOME}/.local/share/opencode-session-viewer"
 PROD_BRANCH="prod"
 SERVICE_NAME="opencode-session-viewer"
-SERVICE_FILE="${HOME}/.config/systemd/user/${SERVICE_NAME}.service"
 SERVICE_PORT=18000
+SERVICE_HOSTNAME="opencode.home"
+
+# ---------------------------------------------------------------------------
+# Platform Detection
+# ---------------------------------------------------------------------------
+PLATFORM="$(uname -s)"
+case "$PLATFORM" in
+    Linux*)   INIT_SYSTEM="systemd" ;;
+    Darwin*)  INIT_SYSTEM="launchd" ;;
+    *)
+        echo "ERROR: Unsupported platform: $PLATFORM"
+        echo "       Supported platforms: Linux (systemd), macOS (launchd)"
+        exit 1
+        ;;
+esac
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -61,63 +76,30 @@ uv sync --project "$PROD_DIR" --no-dev
 success "Dependencies installed in $PROD_DIR/.venv"
 
 # ---------------------------------------------------------------------------
-# 4. Install the systemd user service
+# 4. Install the service (platform-specific)
 # ---------------------------------------------------------------------------
-info "Installing systemd user service..."
-
-mkdir -p "$(dirname "$SERVICE_FILE")"
-
-cat > "$SERVICE_FILE" <<EOF
-[Unit]
-Description=OpenCode Session Viewer (FastAPI)
-After=network.target
-
-[Service]
-Type=simple
-WorkingDirectory=${PROD_DIR}
-ExecStart=${PROD_DIR}/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port ${SERVICE_PORT}
-Restart=on-failure
-RestartSec=5
-
-[Install]
-WantedBy=default.target
-EOF
-
-success "Service file written to $SERVICE_FILE"
+info "Installing ${INIT_SYSTEM} service..."
+"${SCRIPT_DIR}/local-deploy/${INIT_SYSTEM}/install.sh" "$PROD_DIR" "$SERVICE_PORT"
 
 # ---------------------------------------------------------------------------
 # 5. Enable and start the service
 # ---------------------------------------------------------------------------
-info "Reloading systemd daemon..."
-systemctl --user daemon-reload
-
-info "Enabling service to start on login..."
-systemctl --user enable "$SERVICE_NAME"
-
 info "Starting service..."
-systemctl --user start "$SERVICE_NAME"
+"${SCRIPT_DIR}/local-deploy/${INIT_SYSTEM}/start.sh"
 
 # ---------------------------------------------------------------------------
-# 6. Install cron job for automatic DB sync
+# 6. Configure nginx reverse proxy with HTTPS
 # ---------------------------------------------------------------------------
-info "Installing cron job for automatic DB sync..."
-
-CRON_JOB="* * * * * curl -s -X POST http://127.0.0.1:${SERVICE_PORT}/api/sync > /dev/null 2>&1"
-
-if crontab -l 2>/dev/null | grep -qF "/api/sync"; then
-    warn "Cron job already exists — skipping."
-else
-    (crontab -l 2>/dev/null; echo "$CRON_JOB") | crontab -
-    success "Cron job installed (runs every minute)"
-fi
+info "Setting up nginx reverse proxy..."
+"${SCRIPT_DIR}/local-deploy/nginx/install.sh" "$SERVICE_PORT" "$SERVICE_HOSTNAME"
 
 # ---------------------------------------------------------------------------
 # Done
 # ---------------------------------------------------------------------------
 echo ""
-echo "Setup complete."
+echo "Setup complete. (platform: ${PLATFORM}, init: ${INIT_SYSTEM})"
 echo ""
-echo "  Service status : systemctl --user status $SERVICE_NAME"
-echo "  App URL        : http://127.0.0.1:${SERVICE_PORT}"
+echo "  Service status : ./service.sh status"
+echo "  App URL        : https://${SERVICE_HOSTNAME}"
 echo "  Deploy updates : ./deploy.sh"
 echo ""
