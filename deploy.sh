@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # deploy.sh — Deploy the current state of main to the prod worktree and restart
-#             the systemd service.
+#             the service (systemd on Linux, launchd on macOS).
 #
 # Usage: ./deploy.sh [--no-restart]
 #   --no-restart   Update the prod worktree but skip the service restart.
@@ -15,7 +15,22 @@ DEV_DIR="$SCRIPT_DIR"
 PROD_DIR="${HOME}/.local/share/opencode-session-viewer"
 PROD_BRANCH="prod"
 SERVICE_NAME="opencode-session-viewer"
+SERVICE_PORT=18000
 NO_RESTART=false
+
+# ---------------------------------------------------------------------------
+# Platform Detection
+# ---------------------------------------------------------------------------
+PLATFORM="$(uname -s)"
+case "$PLATFORM" in
+    Linux*)   INIT_SYSTEM="systemd" ;;
+    Darwin*)  INIT_SYSTEM="launchd" ;;
+    *)
+        echo "ERROR: Unsupported platform: $PLATFORM"
+        echo "       Supported platforms: Linux (systemd), macOS (launchd)"
+        exit 1
+        ;;
+esac
 
 # ---------------------------------------------------------------------------
 # Argument parsing
@@ -53,9 +68,9 @@ if [[ "$CURRENT_BRANCH" != "main" ]]; then
     [[ "$confirm" =~ ^[Yy]$ ]] || { echo "Aborted."; exit 1; }
 fi
 
-# Ensure working tree is clean (avoid deploying uncommitted changes)
-if ! git -C "$DEV_DIR" diff --quiet || ! git -C "$DEV_DIR" diff --cached --quiet; then
-    echo "ERROR: You have uncommitted changes in the dev repo."
+# Ensure app code is clean (avoid deploying uncommitted changes to app/)
+if ! git -C "$DEV_DIR" diff --quiet -- app/ || ! git -C "$DEV_DIR" diff --cached --quiet -- app/; then
+    echo "ERROR: You have uncommitted changes in app/."
     echo "       Commit or stash them before deploying."
     exit 1
 fi
@@ -86,19 +101,19 @@ success "Dependencies up to date"
 if [[ "$NO_RESTART" == true ]]; then
     echo ""
     echo "Skipped service restart (--no-restart)."
-    echo "To restart manually: systemctl --user restart $SERVICE_NAME"
+    echo "To restart manually: ./local-deploy/${INIT_SYSTEM}/restart.sh"
 else
-    info "Restarting systemd service..."
-    systemctl --user restart "$SERVICE_NAME"
+    info "Restarting service..."
+    "${SCRIPT_DIR}/local-deploy/${INIT_SYSTEM}/restart.sh"
     success "Service restarted"
 
     # Brief pause then check it actually came up
-    sleep 1
-    if systemctl --user is-active --quiet "$SERVICE_NAME"; then
+    sleep 2
+    if curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:${SERVICE_PORT}/api/sync" | grep -q "200"; then
         success "Service is running"
     else
         echo "ERROR: Service failed to start after restart."
-        echo "       Check logs with: journalctl --user -u $SERVICE_NAME -n 50"
+        echo "       Check status with: ./local-deploy/${INIT_SYSTEM}/status.sh"
         exit 1
     fi
 fi
