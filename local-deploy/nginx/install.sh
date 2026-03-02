@@ -76,6 +76,7 @@ if [[ ! -d "$SSL_DIR" ]]; then
     if [[ "$PLATFORM" == "Darwin" ]]; then
         mkdir -p "$SSL_DIR"
     else
+        info "sudo required to create SSL directory ${SSL_DIR}"
         sudo mkdir -p "$SSL_DIR"
     fi
 fi
@@ -89,6 +90,7 @@ else
     else
         # On Linux, SSL dir is typically owned by root
         mkcert -cert-file "/tmp/${HOSTNAME}.pem" -key-file "/tmp/${HOSTNAME}-key.pem" "$HOSTNAME"
+        info "sudo required to move SSL certificates to ${SSL_DIR}"
         sudo mv "/tmp/${HOSTNAME}.pem" "$SSL_CERT"
         sudo mv "/tmp/${HOSTNAME}-key.pem" "$SSL_KEY"
     fi
@@ -104,6 +106,7 @@ if [[ ! -d "$NGINX_SITES_DIR" ]]; then
     if [[ "$PLATFORM" == "Darwin" ]]; then
         mkdir -p "$NGINX_SITES_DIR"
     else
+        info "sudo required to create nginx sites directory"
         sudo mkdir -p "$NGINX_SITES_DIR"
     fi
 fi
@@ -143,6 +146,7 @@ server {
 if [[ "$PLATFORM" == "Darwin" ]]; then
     echo "$NGINX_CONF_CONTENT" > "$NGINX_CONF_FILE"
 else
+    info "sudo required to write nginx configuration"
     echo "$NGINX_CONF_CONTENT" | sudo tee "$NGINX_CONF_FILE" > /dev/null
 fi
 
@@ -156,7 +160,7 @@ info "Checking /etc/hosts for ${HOSTNAME}..."
 if grep -qE "^127\.0\.0\.1[[:space:]]+.*\b${HOSTNAME}\b" /etc/hosts; then
     warn "${HOSTNAME} already in /etc/hosts — skipping"
 else
-    info "Adding ${HOSTNAME} to /etc/hosts (requires sudo)..."
+    info "sudo required to add ${HOSTNAME} to /etc/hosts"
     echo "127.0.0.1    ${HOSTNAME}" | sudo tee -a /etc/hosts > /dev/null
     success "Added ${HOSTNAME} to /etc/hosts"
 fi
@@ -164,7 +168,7 @@ fi
 # ---------------------------------------------------------------------------
 # 6. Test and reload nginx
 # ---------------------------------------------------------------------------
-info "Testing nginx configuration..."
+info "Testing nginx configuration (sudo required)..."
 if sudo nginx -t 2>&1; then
     success "nginx configuration is valid"
 else
@@ -173,16 +177,19 @@ fi
 
 info "Reloading nginx..."
 if [[ "$PLATFORM" == "Darwin" ]]; then
-    # macOS: nginx might be managed by brew services or running standalone
-    if brew services list 2>/dev/null | grep -q "nginx.*started"; then
-        brew services restart nginx
-    elif pgrep -x nginx > /dev/null; then
+    # macOS: prefer nginx -s reload if nginx is running
+    if pgrep -x nginx > /dev/null; then
+        info "sudo required to reload nginx"
         sudo nginx -s reload
+    elif brew services list 2>/dev/null | grep -q "nginx.*started"; then
+        brew services restart nginx
     else
         # Start nginx if not running
+        info "sudo required to start nginx"
         sudo nginx
     fi
 else
+    info "sudo required to reload nginx"
     sudo systemctl reload nginx || sudo nginx -s reload
 fi
 

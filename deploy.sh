@@ -109,7 +109,7 @@ else
 
     # Brief pause then check it actually came up
     sleep 2
-    if curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:${SERVICE_PORT}/api/sync" | grep -q "200"; then
+    if curl -sf -o /dev/null "http://127.0.0.1:${SERVICE_PORT}/" 2>/dev/null; then
         success "Service is running"
     else
         echo "ERROR: Service failed to start after restart."

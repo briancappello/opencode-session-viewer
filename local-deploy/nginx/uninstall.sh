@@ -48,6 +48,7 @@ if [[ -f "$NGINX_CONF_FILE" ]]; then
     if [[ "$PLATFORM" == "Darwin" ]]; then
         rm -f "$NGINX_CONF_FILE"
     else
+        info "sudo required to remove nginx configuration"
         sudo rm -f "$NGINX_CONF_FILE"
     fi
     success "Removed $NGINX_CONF_FILE"
@@ -64,6 +65,7 @@ if [[ -f "$SSL_CERT" ]]; then
     if [[ "$PLATFORM" == "Darwin" ]]; then
         rm -f "$SSL_CERT"
     else
+        info "sudo required to remove SSL certificate"
         sudo rm -f "$SSL_CERT"
     fi
     success "Removed $SSL_CERT"
@@ -75,6 +77,7 @@ if [[ -f "$SSL_KEY" ]]; then
     if [[ "$PLATFORM" == "Darwin" ]]; then
         rm -f "$SSL_KEY"
     else
+        info "sudo required to remove SSL key"
         sudo rm -f "$SSL_KEY"
     fi
     success "Removed $SSL_KEY"
@@ -88,7 +91,7 @@ fi
 info "Removing ${HOSTNAME} from /etc/hosts..."
 
 if grep -qE "^127\.0\.0\.1[[:space:]]+.*\b${HOSTNAME}\b" /etc/hosts; then
-    # Create a backup and remove the line
+    info "sudo required to modify /etc/hosts"
     sudo cp /etc/hosts /etc/hosts.bak
     grep -vE "^127\.0\.0\.1[[:space:]]+${HOSTNAME}$" /etc/hosts | sudo tee /etc/hosts.tmp > /dev/null
     sudo mv /etc/hosts.tmp /etc/hosts
@@ -103,12 +106,13 @@ fi
 info "Reloading nginx..."
 
 if command -v nginx &>/dev/null; then
+    info "sudo required to test and reload nginx"
     if sudo nginx -t 2>&1; then
         if [[ "$PLATFORM" == "Darwin" ]]; then
-            if brew services list 2>/dev/null | grep -q "nginx.*started"; then
-                brew services restart nginx
-            elif pgrep -x nginx > /dev/null; then
+            if pgrep -x nginx > /dev/null; then
                 sudo nginx -s reload
+            elif brew services list 2>/dev/null | grep -q "nginx.*started"; then
+                brew services restart nginx
             fi
         else
             sudo systemctl reload nginx 2>/dev/null || sudo nginx -s reload 2>/dev/null || true
