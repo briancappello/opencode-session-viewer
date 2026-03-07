@@ -4,6 +4,7 @@
 let SESSION_DATA = null;
 let currentFilter = "all";
 let filterQuery = "";
+let showThinkingSteps = false;
 let toolCounter = 0;
 let highlightedId = null;
 let tokenData = [];
@@ -139,6 +140,17 @@ function esc(text) {
   const div = document.createElement("div");
   div.textContent = text;
   return div.innerHTML;
+}
+
+// Determine if a message is a "thinking step" (agentic tool-calling loop message)
+// vs a final/substantive assistant response.
+// A thinking step is an assistant message that either:
+//   - has finish == "tool-calls" (stopped to invoke tools), or
+//   - has no "text" parts and no finish=="stop" (pure step-start/step-finish/tool sequences)
+function isThinkingStep(msg) {
+  if (msg.role !== "assistant") return false;
+  if (msg.finish === "stop") return false;
+  return true;
 }
 
 // Get preview
@@ -535,6 +547,9 @@ function renderSidebar() {
   const filtered = SESSION_DATA.messages.filter((m, i) => {
     if (currentFilter !== "all" && m.role !== currentFilter) return false;
 
+    // Hide thinking steps unless checkbox is checked
+    if (!showThinkingSteps && isThinkingStep(m)) return false;
+
     const preview = getPreview(m);
     // Filter out bracketed previews like [bash], [edit], etc.
     if (/^\[.*?\]$/.test(preview.trim())) return false;
@@ -758,7 +773,10 @@ function renderTimeline() {
   toolCounter = 0;
   const timeline = document.getElementById("timeline");
   timeline.innerHTML = SESSION_DATA.messages
-    .filter((m) => !/^\[.*?\]$/.test(getPreview(m).trim()))
+    .filter((m) => {
+      if (!showThinkingSteps && isThinkingStep(m)) return false;
+      return !/^\[.*?\]$/.test(getPreview(m).trim());
+    })
     .map((m, i) => {
       // We need to use the original index to keep links working
       const originalIdx = SESSION_DATA.messages.indexOf(m);
@@ -970,6 +988,15 @@ function initConversation() {
     renderFilterIndicator();
     renderSidebar();
   });
+
+  // Set up thinking steps toggle
+  document
+    .getElementById("showThinkingSteps")
+    .addEventListener("change", (e) => {
+      showThinkingSteps = e.target.checked;
+      renderSidebar();
+      renderTimeline();
+    });
 
   // Resize handler for sparkline
   window.addEventListener("resize", () => {

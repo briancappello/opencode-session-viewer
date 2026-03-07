@@ -96,6 +96,10 @@ class UpstreamMessage(UpstreamBase):
             return None
         return summary_value
 
+    @property
+    def finish(self) -> Optional[str]:
+        return self._json_data.get("finish")
+
 
 class UpstreamPart(UpstreamBase):
     __tablename__ = "part"

@@ -55,6 +55,7 @@ class Message(BaseModel):
     time_created: Optional[int] = None
     time_updated: Optional[int] = None
     summary: Optional[MessageSummary] = None
+    finish: Optional[str] = None
     parts: List[GenericPart] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
