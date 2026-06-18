@@ -106,6 +106,10 @@ class ConversationExport(BaseModel):
 
     summary: ConversationSummary
     messages: List[Message]
+    subagent_transcripts: List[ConversationExport] = Field(default_factory=list)
+    task_part_id: Optional[str] = None
+    task_message_id: Optional[str] = None
+    agent_type: Optional[str] = None
 
 
 # --- Search Models ---
@@ -119,6 +123,8 @@ class SearchMatch(BaseModel):
     role: str
     snippet: str  # Text snippet with match context
     time_created: Optional[int] = None
+    session_id: Optional[str] = None
+    session_title: Optional[str] = None
 
 
 class SearchResult(BaseModel):

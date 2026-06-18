@@ -7,7 +7,6 @@ from typing import List, Optional
 
 from sqlalchemy import select, text
 
-from app.config import Config
 from app.db import (
     Conversation,
     get_archived_conversation_ids,
@@ -23,6 +22,29 @@ from app.models import (
     SearchMatch,
     SearchResult,
 )
+
+
+def _get_model_name(upstream_db, upstream_session_id: str) -> str:
+    """Fetch the first model name recorded on a session's messages."""
+    msg = upstream_db.scalars(
+        select(UpstreamMessage)
+        .where(UpstreamMessage.session_id == upstream_session_id)
+        .where(UpstreamMessage.data.like("%modelID%"))
+        .limit(1)
+    ).first()
+
+    if not msg:
+        return "Unknown"
+
+    try:
+        msg_data = json.loads(msg.data)
+        return (
+            msg_data.get("model", {}).get("modelID")
+            or msg_data.get("modelID")
+            or "Unknown"
+        )
+    except Exception:
+        return "Unknown"
 
 
 def _apply_extensions(
@@ -60,28 +82,8 @@ def list_conversations_from_db() -> List[ConversationSummary]:
                     # Upstream row gone (deleted from source); skip.
                     continue
 
-                # Fetch model name from the first message that carries one
-                model_name = "Unknown"
-                msg = upstream_db.scalars(
-                    select(UpstreamMessage)
-                    .where(UpstreamMessage.session_id == conv.upstream_session_id)
-                    .where(UpstreamMessage.data.like("%modelID%"))
-                    .limit(1)
-                ).first()
-
-                if msg:
-                    try:
-                        msg_data = json.loads(msg.data)
-                        model_name = (
-                            msg_data.get("model", {}).get("modelID")
-                            or msg_data.get("modelID")
-                            or "Unknown"
-                        )
-                    except Exception:
-                        pass
-
                 summary = ConversationSummary.model_validate(upstream)
-                summary.model = model_name
+                summary.model = _get_model_name(upstream_db, conv.upstream_session_id)
                 _apply_extensions(summary, conv)
                 results.append(summary)
 
@@ -135,6 +137,209 @@ def format_timestamp(ts: Optional[int]) -> str:
     return datetime.fromtimestamp(ts / 1000).strftime("%Y-%m-%d %H:%M")
 
 
+def _load_session_messages(upstream_db, session_id: str) -> list[Message]:
+    stmt = (
+        select(UpstreamMessage)
+        .where(UpstreamMessage.session_id == session_id)
+        .order_by(UpstreamMessage.time_created, UpstreamMessage.id)
+    )
+    return [Message.model_validate(m) for m in upstream_db.scalars(stmt).all()]
+
+
+def _task_part_state(part) -> tuple[dict, dict, dict]:
+    state = part.state or {}
+    metadata = state.get("metadata") if isinstance(state, dict) else None
+    input_data = state.get("input") if isinstance(state, dict) else None
+
+    if not isinstance(state, dict):
+        state = {}
+    if not isinstance(metadata, dict):
+        metadata = {}
+    if not isinstance(input_data, dict):
+        input_data = {}
+
+    return state, metadata, input_data
+
+
+def _task_link_from_part(message: Message, part) -> dict[str, str]:
+    _, _, input_data = _task_part_state(part)
+    link: dict[str, str] = {}
+    if part.id:
+        link["task_part_id"] = part.id
+    if message.id:
+        link["task_message_id"] = message.id
+
+    agent_type = input_data.get("subagent_type")
+    if isinstance(agent_type, str) and agent_type:
+        link["agent_type"] = agent_type
+
+    return link
+
+
+def _task_subagent_links(messages: list[Message]) -> dict[str, dict[str, str]]:
+    """Map task tool metadata session IDs to the tool part that launched them."""
+    links: dict[str, dict[str, str]] = {}
+
+    for message in messages:
+        for part in message.parts:
+            if part.type != "tool" or part.tool != "task":
+                continue
+
+            _, metadata, _ = _task_part_state(part)
+            session_id = metadata.get("sessionId") or metadata.get("session_id")
+            if not isinstance(session_id, str) or not session_id:
+                continue
+
+            links[session_id] = _task_link_from_part(message, part)
+
+    return links
+
+
+def _subagent_title_stem(title: str | None) -> str:
+    if not title:
+        return ""
+    return re.sub(r"\s+\([^)]*subagent\)\s*$", "", title).strip()
+
+
+def _task_title_candidate(input_data: dict) -> str:
+    description = input_data.get("description")
+    if isinstance(description, str) and description.strip():
+        return description.strip()
+
+    prompt = input_data.get("prompt")
+    if isinstance(prompt, str) and prompt.strip():
+        return prompt.strip().splitlines()[0].strip()
+
+    return ""
+
+
+def _infer_subagent_task_link(
+    child: UpstreamSession,
+    messages: list[Message],
+    used_task_part_ids: set[str],
+) -> dict[str, str]:
+    """Infer a task link for child sessions whose task metadata omitted sessionId."""
+    child_title = _subagent_title_stem(child.title)
+    if not child_title:
+        return {}
+
+    candidates: list[tuple[int, dict[str, str]]] = []
+    for message in messages:
+        for part in message.parts:
+            if part.type != "tool" or part.tool != "task":
+                continue
+            if part.id and part.id in used_task_part_ids:
+                continue
+
+            _, metadata, input_data = _task_part_state(part)
+            session_id = metadata.get("sessionId") or metadata.get("session_id")
+            if isinstance(session_id, str) and session_id:
+                continue
+
+            task_title = _task_title_candidate(input_data)
+            if task_title != child_title:
+                continue
+
+            message_time = message.time_created or part.time_created or 0
+            child_time = child.time_created or 0
+            if child_time and message_time and message_time > child_time:
+                continue
+
+            candidates.append((message_time, _task_link_from_part(message, part)))
+
+    if not candidates:
+        return {}
+
+    candidates.sort(key=lambda candidate: candidate[0], reverse=True)
+    return candidates[0][1]
+
+
+def _conversation_summary_from_upstream(
+    upstream_db,
+    upstream_session: UpstreamSession,
+) -> ConversationSummary:
+    summary = ConversationSummary.model_validate(upstream_session)
+    summary.model = _get_model_name(upstream_db, upstream_session.id)
+
+    extension = get_conversation(upstream_session.id)
+    if extension is not None:
+        _apply_extensions(summary, extension)
+
+    return summary
+
+
+def _build_conversation_export(
+    upstream_db,
+    upstream_session: UpstreamSession,
+    task_link: Optional[dict[str, str]] = None,
+    visited: Optional[set[str]] = None,
+) -> ConversationExport:
+    """Build a conversation export and recursively include child transcripts."""
+    visited = set(visited or set())
+    if upstream_session.id in visited:
+        return ConversationExport(
+            summary=_conversation_summary_from_upstream(upstream_db, upstream_session),
+            messages=[],
+        )
+    visited.add(upstream_session.id)
+
+    messages = _load_session_messages(upstream_db, upstream_session.id)
+    task_links = _task_subagent_links(messages)
+
+    child_sessions: list[tuple[UpstreamSession, dict[str, str]]] = []
+    seen_child_ids: set[str] = set()
+
+    for child_id, link in task_links.items():
+        child = upstream_db.get(UpstreamSession, child_id)
+        if child is None or child.id in seen_child_ids:
+            continue
+        if child.parent_id != upstream_session.id:
+            continue
+        child_sessions.append((child, link))
+        seen_child_ids.add(child.id)
+
+    fallback_children = upstream_db.scalars(
+        select(UpstreamSession)
+        .where(UpstreamSession.parent_id == upstream_session.id)
+        .order_by(UpstreamSession.time_created, UpstreamSession.id)
+    ).all()
+    used_task_part_ids = {
+        link["task_part_id"] for link in task_links.values() if "task_part_id" in link
+    }
+    for child in fallback_children:
+        if child.id in seen_child_ids:
+            continue
+        inferred_link = _infer_subagent_task_link(
+            child,
+            messages,
+            used_task_part_ids,
+        )
+        if "task_part_id" in inferred_link:
+            used_task_part_ids.add(inferred_link["task_part_id"])
+        child_sessions.append((child, inferred_link))
+        seen_child_ids.add(child.id)
+
+    subagent_transcripts = [
+        _build_conversation_export(
+            upstream_db,
+            child,
+            task_link=link,
+            visited=visited,
+        )
+        for child, link in child_sessions
+    ]
+
+    task_link = task_link or {}
+    return ConversationExport(
+        summary=_conversation_summary_from_upstream(upstream_db, upstream_session),
+        messages=messages,
+        subagent_transcripts=subagent_transcripts,
+        task_part_id=task_link.get("task_part_id"),
+        task_message_id=task_link.get("task_message_id"),
+        agent_type=task_link.get("agent_type"),
+    )
+
+
 def load_conversation_export(conversation_id: str) -> ConversationExport | None:
     """Export a full conversation with messages, starting from the Conversation row.
 
@@ -152,17 +357,9 @@ def load_conversation_export(conversation_id: str) -> ConversationExport | None:
         if upstream_session is None:
             raise ValueError(f"Upstream data not found for {conversation_id=}")
 
-        stmt = (
-            select(UpstreamMessage)
-            .where(UpstreamMessage.session_id == upstream_session.id)
-            .order_by(UpstreamMessage.time_created)
-        )
-        messages = [Message.model_validate(m) for m in upstream_db.scalars(stmt).all()]
-
-        summary = ConversationSummary.model_validate(upstream_session)
-        _apply_extensions(summary, conversation)
-
-        return ConversationExport(summary=summary, messages=messages)
+        export = _build_conversation_export(upstream_db, upstream_session)
+        _apply_extensions(export.summary, conversation)
+        return export
 
 
 def _escape_fts5_query(query: str) -> str:
@@ -213,9 +410,6 @@ def search_conversations(
     Returns:
         List of SearchResult objects with matching conversations and snippets
     """
-    if not Config.SEARCH_DB_PATH.exists():
-        return []
-
     safe_query = query.strip()
     if not safe_query:
         return []
@@ -237,23 +431,31 @@ def search_conversations(
             sql = f"""
                 SELECT
                     p.id as part_id,
-                    p.upstream_session_id,
+                    p.upstream_session_id as match_session_id,
                     p.message_id,
                     p.role,
                     p.content,
                     p.time_created,
-                    s.title,
-                    s.directory,
-                    s.time_updated
+                    s.title as match_session_title,
+                    COALESCE(parent.id, s.parent_id, s.id) as conversation_id,
+                    COALESCE(parent.title, s.title) as title,
+                    COALESCE(parent.directory, s.directory) as directory,
+                    COALESCE(parent.time_updated, s.time_updated) as time_updated
                 FROM {SearchPartIndex.__tablename__} p
                 JOIN {SearchConversationIndex.__tablename__} s ON p.upstream_session_id = s.id
+                LEFT JOIN {SearchConversationIndex.__tablename__} parent ON s.parent_id = parent.id
                 WHERE p.content REGEXP :query
             """
 
             params: dict = {"query": safe_query}
 
             if directory:
-                sql += " AND s.directory LIKE :directory"
+                sql += """
+                    AND (
+                        s.directory LIKE :directory
+                        OR parent.directory LIKE :directory
+                    )
+                """
                 params["directory"] = f"%{directory}%"
 
             sql += " ORDER BY s.time_updated DESC LIMIT :limit"
@@ -267,8 +469,11 @@ def search_conversations(
 
             # Group matches by conversation with manually generated snippets, excluding archived
             for row in rows:
-                conversation_id = row.upstream_session_id
-                if conversation_id in archived_ids:
+                conversation_id = row.conversation_id
+                if (
+                    conversation_id in archived_ids
+                    or row.match_session_id in archived_ids
+                ):
                     continue
 
                 if conversation_id not in results_map:
@@ -293,6 +498,8 @@ def search_conversations(
                             role=row.role,
                             snippet=snippet,
                             time_created=row.time_created,
+                            session_id=row.match_session_id,
+                            session_title=row.match_session_title,
                         )
                     )
         else:
@@ -302,18 +509,21 @@ def search_conversations(
             sql = f"""
                 SELECT
                     p.id as part_id,
-                    p.upstream_session_id,
+                    p.upstream_session_id as match_session_id,
                     p.message_id,
                     p.role,
                     p.content,
                     p.time_created,
-                    s.title,
-                    s.directory,
-                    s.time_updated,
+                    s.title as match_session_title,
+                    COALESCE(parent.id, s.parent_id, s.id) as conversation_id,
+                    COALESCE(parent.title, s.title) as title,
+                    COALESCE(parent.directory, s.directory) as directory,
+                    COALESCE(parent.time_updated, s.time_updated) as time_updated,
                     snippet(part_fts, 0, '<<MATCH>>', '<<END>>', '...', :snippet_tokens) as snippet
                 FROM part_fts f
                 JOIN {SearchPartIndex.__tablename__} p ON f.rowid = p.rowid
                 JOIN {SearchConversationIndex.__tablename__} s ON p.upstream_session_id = s.id
+                LEFT JOIN {SearchConversationIndex.__tablename__} parent ON s.parent_id = parent.id
                 WHERE part_fts MATCH :query
             """
 
@@ -323,7 +533,12 @@ def search_conversations(
             }
 
             if directory:
-                sql += " AND s.directory LIKE :directory"
+                sql += """
+                    AND (
+                        s.directory LIKE :directory
+                        OR parent.directory LIKE :directory
+                    )
+                """
                 params["directory"] = f"%{directory}%"
 
             sql += " ORDER BY s.time_updated DESC LIMIT :limit"
@@ -337,8 +552,11 @@ def search_conversations(
 
             # Group matches by conversation, excluding archived
             for row in rows:
-                conversation_id = row.upstream_session_id
-                if conversation_id in archived_ids:
+                conversation_id = row.conversation_id
+                if (
+                    conversation_id in archived_ids
+                    or row.match_session_id in archived_ids
+                ):
                     continue
 
                 if conversation_id not in results_map:
@@ -362,6 +580,8 @@ def search_conversations(
                             role=row.role,
                             snippet=row.snippet or row.content[:snippet_length],
                             time_created=row.time_created,
+                            session_id=row.match_session_id,
+                            session_title=row.match_session_title,
                         )
                     )
 
@@ -371,9 +591,6 @@ def search_conversations(
 # FIXME replace with project query
 def list_directories() -> List[str]:
     """Get a list of unique directories from indexed conversations (excluding archived)."""
-    if not Config.SEARCH_DB_PATH.exists():
-        return []
-
     archived_ids = get_archived_conversation_ids()
 
     with get_search_session() as db:
@@ -383,7 +600,12 @@ def list_directories() -> List[str]:
             WHERE directory IS NOT NULL AND directory != ''
             ORDER BY directory
         """
-        rows = db.execute(text(sql)).fetchall()
+        try:
+            rows = db.execute(text(sql)).fetchall()
+        except Exception as e:
+            print(f"Directory query error: {e}", file=sys.stderr)
+            return []
+
         # Post-filter: exclude directories that are only present in archived conversations.
         # For simplicity we return all directories and let the UI/search handle exclusion.
         # If a stricter filter is needed, cross-reference per-row upstream_session_id against archived_ids.

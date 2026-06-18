@@ -80,6 +80,7 @@ def sync_conversation(source_db, search_db, upstream_conv: UpstreamSession):
     # Upsert conversation into the search index (archived state lives in db.py, not here)
     existing = search_db.get(SearchConversationIndex, upstream_conv.id)
     if existing:
+        existing.parent_id = upstream_conv.parent_id
         existing.directory = upstream_conv.directory
         existing.title = upstream_conv.title
         existing.time_updated = upstream_conv.time_updated
@@ -87,6 +88,7 @@ def sync_conversation(source_db, search_db, upstream_conv: UpstreamSession):
         search_db.add(
             SearchConversationIndex(
                 id=upstream_conv.id,
+                parent_id=upstream_conv.parent_id,
                 directory=upstream_conv.directory,
                 title=upstream_conv.title,
                 time_updated=upstream_conv.time_updated,

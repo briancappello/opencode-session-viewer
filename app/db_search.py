@@ -52,6 +52,7 @@ class SearchConversationIndex(SearchBase):
     __tablename__ = "conversation_index"
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
+    parent_id: Mapped[Optional[str]] = mapped_column(String, nullable=True, index=True)
     directory: Mapped[Optional[str]] = mapped_column(String)
     title: Mapped[Optional[str]] = mapped_column(String)
     time_updated: Mapped[Optional[int]] = mapped_column(Integer)
@@ -96,6 +97,20 @@ def init_search_db():
 
     # Create regular tables
     SearchBase.metadata.create_all(engine)
+
+    with engine.connect() as conn:
+        columns = {
+            row[1] for row in conn.execute(text("PRAGMA table_info(conversation_index)"))
+        }
+        if "parent_id" not in columns:
+            conn.execute(text("ALTER TABLE conversation_index ADD COLUMN parent_id TEXT"))
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_conversation_index_parent_id "
+                    "ON conversation_index(parent_id)"
+                )
+            )
+            conn.commit()
 
     # Create FTS5 virtual table for full-text search
     with engine.connect() as conn:

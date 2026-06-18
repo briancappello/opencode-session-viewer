@@ -120,9 +120,13 @@ function displaySearchResults(results, query, useRegex = false) {
           const snippet = escapeHtml(match.snippet)
             .replace(/&lt;&lt;MATCH&gt;&gt;/g, "<mark>")
             .replace(/&lt;&lt;END&gt;&gt;/g, "</mark>");
+          const matchLabel =
+            match.session_id && match.session_id !== result.conversation_id
+              ? `${match.role} · ${match.session_title || "subagent transcript"}`
+              : match.role;
           return `
             <div class="match-snippet">
-              <div class="match-role">${match.role}</div>
+              <div class="match-role">${escapeHtml(matchLabel)}</div>
               <div>${snippet}</div>
             </div>
           `;

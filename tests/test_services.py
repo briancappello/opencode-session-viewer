@@ -2,9 +2,12 @@
 Tests for app/services.py — the business-logic layer.
 """
 
+import json
 import re
 
 from app.db import Conversation
+from app.db_search import SearchConversationIndex, SearchPartIndex
+from app.db_upstream import UpstreamPart
 from app.models import ConversationSummary
 from app.services import (
     _apply_extensions,
@@ -19,6 +22,8 @@ from app.services import (
 )
 
 from tests.conftest import (
+    make_upstream_message,
+    make_upstream_part,
     make_upstream_session,
 )
 
@@ -225,6 +230,150 @@ class TestLoadConversationExport:
         assert result is not None
         assert result.summary.title == "Custom Export Title"
 
+    def test_export_includes_linked_subagent_transcript(self, populated_dbs, upstream_db):
+        child = make_upstream_session(
+            id="sub-1",
+            title="Inspect files (@general subagent)",
+            parent_id="sess-1",
+            time_created=1_700_000_000_700,
+        )
+        task_msg = make_upstream_message(
+            id="msg-task",
+            session_id="sess-1",
+            role="assistant",
+            time_created=1_700_000_000_650,
+        )
+        task_part = UpstreamPart(
+            id="part-task",
+            message_id="msg-task",
+            data=json.dumps(
+                {
+                    "type": "tool",
+                    "tool": "task",
+                    "state": {
+                        "input": {
+                            "subagent_type": "general",
+                            "description": "Inspect files",
+                            "prompt": "Inspect files",
+                        },
+                        "metadata": {"sessionId": "sub-1"},
+                        "status": "completed",
+                    },
+                }
+            ),
+            time_created=1_700_000_000_660,
+        )
+        child_msg = make_upstream_message(
+            id="sub-msg-1",
+            session_id="sub-1",
+            role="assistant",
+            time_created=1_700_000_000_800,
+        )
+        child_part = make_upstream_part(
+            id="sub-part-1",
+            message_id="sub-msg-1",
+            text="subagent transcript body",
+            time_created=1_700_000_000_810,
+        )
+        upstream_db.add_all([child, task_msg, task_part, child_msg, child_part])
+        upstream_db.commit()
+
+        result = load_conversation_export("sess-1")
+
+        assert result is not None
+        assert len(result.subagent_transcripts) == 1
+        transcript = result.subagent_transcripts[0]
+        assert transcript.summary.id == "sub-1"
+        assert transcript.task_part_id == "part-task"
+        assert transcript.task_message_id == "msg-task"
+        assert transcript.agent_type == "general"
+        assert transcript.messages[0].parts[0].text == "subagent transcript body"
+
+    def test_export_infers_subagent_task_link_without_session_metadata(
+        self, populated_dbs, upstream_db
+    ):
+        child = make_upstream_session(
+            id="sub-inferred",
+            title="Inspect files (@general subagent)",
+            parent_id="sess-1",
+            time_created=1_700_000_000_700,
+        )
+        task_msg = make_upstream_message(
+            id="msg-task-inferred",
+            session_id="sess-1",
+            role="assistant",
+            time_created=1_700_000_000_650,
+        )
+        task_part = UpstreamPart(
+            id="part-task-inferred",
+            message_id="msg-task-inferred",
+            data=json.dumps(
+                {
+                    "type": "tool",
+                    "tool": "task",
+                    "state": {
+                        "input": {
+                            "subagent_type": "general",
+                            "description": "Inspect files",
+                            "prompt": "Inspect files",
+                        },
+                        "metadata": {},
+                        "status": "completed",
+                    },
+                }
+            ),
+            time_created=1_700_000_000_660,
+        )
+        child_msg = make_upstream_message(
+            id="sub-msg-inferred",
+            session_id="sub-inferred",
+            role="assistant",
+            time_created=1_700_000_000_800,
+        )
+        child_part = make_upstream_part(
+            id="sub-part-inferred",
+            message_id="sub-msg-inferred",
+            text="subagent transcript body",
+            time_created=1_700_000_000_810,
+        )
+        upstream_db.add_all([child, task_msg, task_part, child_msg, child_part])
+        upstream_db.commit()
+
+        result = load_conversation_export("sess-1")
+
+        assert result is not None
+        assert len(result.subagent_transcripts) == 1
+        transcript = result.subagent_transcripts[0]
+        assert transcript.summary.id == "sub-inferred"
+        assert transcript.task_part_id == "part-task-inferred"
+        assert transcript.task_message_id == "msg-task-inferred"
+        assert transcript.agent_type == "general"
+
+    def test_export_includes_unlinked_child_session(self, populated_dbs, upstream_db):
+        child = make_upstream_session(
+            id="sub-unlinked",
+            title="Detached subagent",
+            parent_id="sess-1",
+            time_created=1_700_000_000_700,
+        )
+        child_msg = make_upstream_message(
+            id="sub-unlinked-msg",
+            session_id="sub-unlinked",
+            role="assistant",
+        )
+        child_part = make_upstream_part(
+            id="sub-unlinked-part",
+            message_id="sub-unlinked-msg",
+            text="fallback child transcript",
+        )
+        upstream_db.add_all([child, child_msg, child_part])
+        upstream_db.commit()
+
+        result = load_conversation_export("sess-1")
+
+        assert result is not None
+        assert [t.summary.id for t in result.subagent_transcripts] == ["sub-unlinked"]
+
 
 # ---------------------------------------------------------------------------
 # search_conversations — FTS5 path
@@ -258,6 +407,33 @@ class TestSearchConversationsFts:
         results = search_conversations("Hello", directory="/proj/a")
         ids = [r.conversation_id for r in results]
         assert "sess-2" not in ids
+
+    def test_child_transcript_match_links_to_parent(self, populated_dbs, search_db):
+        child_index = SearchConversationIndex(
+            id="sub-search",
+            parent_id="sess-1",
+            title="Search helper (@general subagent)",
+            directory="/proj/a",
+            time_updated=1_700_000_001_500,
+        )
+        child_part = SearchPartIndex(
+            id="sub-search-part",
+            upstream_session_id="sub-search",
+            message_id="sub-search-msg",
+            role="assistant",
+            content="needle from child transcript",
+            time_created=1_700_000_001_400,
+        )
+        search_db.add_all([child_index, child_part])
+        search_db.commit()
+
+        results = search_conversations("needle")
+
+        assert len(results) == 1
+        assert results[0].conversation_id == "sess-1"
+        assert results[0].title == "First Session"
+        assert results[0].matches[0].session_id == "sub-search"
+        assert results[0].matches[0].session_title == "Search helper (@general subagent)"
 
     def test_total_matches_incremented(self, populated_dbs):
         results = search_conversations("Hello")
@@ -296,6 +472,31 @@ class TestSearchConversationsRegex:
         results = search_conversations("Hello", directory="/proj/b", regex=True)
         ids = [r.conversation_id for r in results]
         assert "sess-1" not in ids
+
+    def test_regex_child_transcript_match_links_to_parent(self, populated_dbs, search_db):
+        child_index = SearchConversationIndex(
+            id="sub-regex",
+            parent_id="sess-1",
+            title="Regex helper",
+            directory="/proj/a",
+            time_updated=1_700_000_001_500,
+        )
+        child_part = SearchPartIndex(
+            id="sub-regex-part",
+            upstream_session_id="sub-regex",
+            message_id="sub-regex-msg",
+            role="assistant",
+            content="regex child transcript",
+            time_created=1_700_000_001_400,
+        )
+        search_db.add_all([child_index, child_part])
+        search_db.commit()
+
+        results = search_conversations("regex.*transcript", regex=True)
+
+        assert len(results) == 1
+        assert results[0].conversation_id == "sess-1"
+        assert results[0].matches[0].session_id == "sub-regex"
 
 
 # ---------------------------------------------------------------------------

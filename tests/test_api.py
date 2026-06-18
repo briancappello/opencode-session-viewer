@@ -7,6 +7,8 @@ is fine — all three DB engines are already pointed at temp files by
 syncs zero new records from the empty upstream DB.
 """
 
+import json
+
 import pytest
 
 from fastapi.testclient import TestClient
@@ -14,6 +16,13 @@ from fastapi.testclient import TestClient
 import app.main as main_module
 
 from app.db import set_conversation_archived
+from app.db_upstream import UpstreamPart
+
+from tests.conftest import (
+    make_upstream_message,
+    make_upstream_part,
+    make_upstream_session,
+)
 
 
 @pytest.fixture()
@@ -77,6 +86,52 @@ class TestConversationPage:
     def test_contains_conversation_json(self, client):
         resp = client.get("/conversation/sess-1")
         assert "sess-1" in resp.text
+
+    def test_contains_subagent_transcript_json(self, client, upstream_db):
+        child = make_upstream_session(
+            id="route-sub-1",
+            title="Route helper (@general subagent)",
+            parent_id="sess-1",
+        )
+        task_msg = make_upstream_message(
+            id="route-task-msg",
+            session_id="sess-1",
+            role="assistant",
+        )
+        task_part = UpstreamPart(
+            id="route-task-part",
+            message_id="route-task-msg",
+            data=json.dumps(
+                {
+                    "type": "tool",
+                    "tool": "task",
+                    "state": {
+                        "input": {"subagent_type": "general"},
+                        "metadata": {"sessionId": "route-sub-1"},
+                    },
+                }
+            ),
+            time_created=1_700_000_000_650,
+        )
+        child_msg = make_upstream_message(
+            id="route-sub-msg",
+            session_id="route-sub-1",
+            role="assistant",
+        )
+        child_part = make_upstream_part(
+            id="route-sub-part",
+            message_id="route-sub-msg",
+            text="route subagent transcript body",
+        )
+        upstream_db.add_all([child, task_msg, task_part, child_msg, child_part])
+        upstream_db.commit()
+
+        resp = client.get("/conversation/sess-1")
+
+        assert resp.status_code == 200
+        assert "subagent_transcripts" in resp.text
+        assert "route-sub-1" in resp.text
+        assert "route subagent transcript body" in resp.text
 
 
 # ---------------------------------------------------------------------------

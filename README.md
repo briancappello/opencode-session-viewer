@@ -4,6 +4,10 @@ A standalone HTML viewer for browsing OpenCode session logs. View your AI coding
 
 This project now includes a **FastAPI web application** for browsing and viewing sessions directly from your local machine, supporting both the new SQLite database storage and legacy JSON files.
 
+![OpenCode Session Viewer dashboard listing local conversations](docs/assets/opencode-session-viewer-dashboard.png)
+
+![OpenCode Session Viewer showing the main transcript with parallel subagent streams](docs/assets/opencode-session-viewer-subagent-streams.png)
+
 ## Quick Start
 
 ### 1. Install Dependencies
@@ -35,11 +39,13 @@ Open **http://127.0.0.1:8000** in your browser.
 - **Dark Mode**: Toggle with the 🌓 button.
 - **Search & Filter**: Find messages by content or role.
 - **Subagent Filtering**: Hide automated subagent sessions to focus on main conversations.
+- **Subagent Transcripts**: View linked subagent transcripts inline from the parent task, with child transcript matches routed to the parent in search.
 - **Markdown Export**: Copy any message as markdown to your clipboard.
 
 ## How it works
 
 OpenCode stores session data in `~/.local/share/opencode/`. The viewer reads from:
+
 1.  **SQLite Database:** `opencode.db` (primary storage for recent sessions).
 2.  **Legacy Files:** `storage/session/`, `storage/message/`, `storage/part/` (for older sessions).
 

@@ -77,7 +77,12 @@ class TestSyncMetadataHelpers:
 
 class TestSyncConversation:
     def test_inserts_conversation_and_parts(self, upstream_db, main_db, search_db):
-        sess = make_upstream_session(id="s1", title="My Session", directory="/proj")
+        sess = make_upstream_session(
+            id="s1",
+            title="My Session",
+            directory="/proj",
+            parent_id="parent-1",
+        )
         msg = make_upstream_message(id="m1", session_id="s1", role="user")
         part = make_upstream_part(id="p1", message_id="m1", text="searchable text")
         upstream_db.add_all([sess, msg, part])
@@ -92,6 +97,7 @@ class TestSyncConversation:
         assert ci is not None
         assert ci.title == "My Session"
         assert ci.directory == "/proj"
+        assert ci.parent_id == "parent-1"
 
         pi_rows = search_db.scalars(
             select(SearchPartIndex).where(SearchPartIndex.upstream_session_id == "s1")

@@ -83,8 +83,8 @@
         </div>
         <div class="thinking-toggle-row">
           <label class="thinking-toggle-label">
-            <input type="checkbox" id="showThinkingSteps" />
-            Show thinking steps
+            <input type="checkbox" id="hideIntermediateSteps" checked />
+            Hide intermediate steps
           </label>
         </div>
         <div class="stats-row" id="stats"></div>
@@ -98,6 +98,20 @@
             </div>
           </div>
         </div>
+        <div
+          class="agent-stream-separator"
+          id="agentStreamSeparator"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize main agent and sub-agent panels"
+          tabindex="0"
+          title="Drag to resize main and sub-agent panels"
+        ></div>
+        <div
+          class="subagent-floating-panels"
+          id="subagentPanelOverlay"
+          aria-label="Open subagent panels"
+        ></div>
         <div class="viz-panel collapsed" id="vizPanel">
           <div class="viz-panel-header">
             <button
